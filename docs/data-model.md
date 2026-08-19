@@ -94,9 +94,10 @@ Cost shape: dominated by storage (tens of GB) and egress, not compute.
   after an authorization check, and logged to `audit_event`.
 - **Append-only audit.** Revoke UPDATE/DELETE on `audit_event` from all application roles.
 - **Encryption at rest and in transit** by default on managed Postgres and Storage.
-- **PHI boundary** — see [`file-uploads.md`](file-uploads.md) §5. Blank policies and blank
-  form templates are not PHI; completed forms are. Keep completed forms out unless a BAA
-  and a separate PHI bucket are in place.
+- **No PHI in scope.** The library holds blank policies and blank form templates only —
+  see [`file-uploads.md`](file-uploads.md) §5. So the controls above exist for governance
+  and survey defensibility, not HIPAA: standard managed hosting is sufficient, and no BAA
+  or PHI-scoped bucket is required. The upload-time identifier warning keeps it that way.
 
 ## 6. Backup & retention
 
@@ -123,10 +124,8 @@ Cost shape: dominated by storage (tens of GB) and egress, not compute.
 
 1. **Headcount** — how many active employees across the 13 facilities? Drives assignment
    and acknowledgement volume (the estimates above assume ~2,000).
-2. **Completed forms** — templates only, or filled forms with patient data too? This is
-   the single biggest scope/compliance fork.
-3. **Identity** — is there an existing SSO (Entra ID / Google Workspace) to authenticate
+2. **Identity** — is there an existing SSO (Entra ID / Google Workspace) to authenticate
    against, or do we manage credentials in-app?
-4. **State variants** — one enterprise policy with state addenda, or separate policy
+3. **State variants** — one enterprise policy with state addenda, or separate policy
    records per state? The schema supports both (`policy.applies_to_states`); the operating
    preference decides which one Compliance actually maintains.

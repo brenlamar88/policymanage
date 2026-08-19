@@ -84,16 +84,25 @@ key is never reused and an overwrite is impossible by construction.
   and are not assignable.
 - Enable bucket versioning plus object-lock/WORM where the storage provider offers it.
 
-## 5. The PHI boundary — decide before build
+## 5. Scope boundary — no PHI
 
-Blank policies and blank form templates contain **no PHI**, which keeps this system in a
-low-risk tier. That changes the moment someone uploads a *completed* form with patient
-information (a filled crash-cart check with a patient name, a completed consent).
+Confirmed by Freedom: **nothing uploaded to this system contains PHI.** The library holds
+blank policies and blank form templates only. Completed/filled forms with patient
+information are not uploaded here — those stay in the EHR.
 
-Recommendation: **completed forms stay out of this system.** The library controls blank
-templates; filled instances live in the EHR. If Freedom does want completed forms here, it
-needs a separate PHI bucket with its own access rules, a signed BAA with the hosting
-vendor, and audit logging on every read — which is a different scope and cost line.
+That classification is worth protecting, because it is what keeps this a
+governance system rather than a clinical one: no BAA dependency, no PHI bucket, no
+per-read disclosure accounting, and no restriction on where documents can be rendered or
+indexed.
 
-An upload-time guard helps either way: warn when a filename or first-page OCR text matches
-patient-identifier patterns (DOB, MRN, SSN) and require an explicit confirmation.
+Two cheap guards keep the boundary from eroding by accident:
+
+1. **Upload-time warning** — if a filename or first-page OCR text matches patient-identifier
+   patterns (DOB, MRN, SSN, "patient name"), warn the uploader and require an explicit
+   confirmation before the file is accepted.
+2. **Stated policy on the upload screen** — "blank controlled documents only; do not upload
+   completed patient forms."
+
+If that decision is ever reversed, the changes are known and contained: a separate
+PHI-scoped bucket with its own RLS, a signed BAA with the hosting vendor, and read-level
+audit logging. Nothing in the current schema blocks it.

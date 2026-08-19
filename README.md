@@ -25,6 +25,14 @@ Static, no build step and no dependencies. Open `index.html` in a browser, or se
 npx http-server .
 ```
 
+## Backend plan
+
+The prototype is front-end only; the backing platform is planned in:
+
+- [`docs/data-model.md`](docs/data-model.md) — recommended stack, table map, scale math, search, security, retention, build phases.
+- [`docs/file-uploads.md`](docs/file-uploads.md) — accepted file types, ingestion pipeline, storage layout, versioning, PHI boundary.
+- [`db/schema.sql`](db/schema.sql) — Postgres DDL (verified against PostgreSQL 16).
+
 ## Notes
 
 - Dashboard counts, TOC section counts, and form-link counts are computed from the dataset, so they stay accurate as records change.

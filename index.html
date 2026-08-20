@@ -104,6 +104,24 @@
 .tocsectionhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:4px}
 .toc-empty{padding:28px;text-align:center;color:var(--muted)}
 .modalbox.wide{width:min(1120px,96vw)}
+.docviewer{display:grid;grid-template-columns:1.35fr .85fr;gap:16px}
+.docframe{width:100%;height:62vh;border:1px solid var(--line);border-radius:9px;background:#fff}
+.docimage{width:100%;border:1px solid var(--line);border-radius:9px;background:#fff}
+.doctext{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:14px;max-height:62vh;overflow:auto}
+.paper{position:relative;background:#fff;border:1px solid var(--line);border-radius:9px;padding:30px 32px;min-height:52vh;line-height:1.6;color:#334155;overflow:hidden}
+.paper h4{margin:0 0 4px;color:var(--navy)}
+.paper .paperhead{border-bottom:2px solid var(--navy);padding-bottom:10px;margin-bottom:16px}
+.paper .fieldline{border-bottom:1px solid #dfe7ee;height:26px;margin:14px 0 4px}
+.paper .watermark{position:absolute;inset:0;display:grid;place-items:center;font-size:64px;font-weight:900;color:rgba(13,37,66,.06);transform:rotate(-24deg);pointer-events:none;letter-spacing:4px}
+.docmeta{font-size:12px}
+.docmeta dt{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-top:11px}
+.docmeta dd{margin:3px 0 0}
+.doclinks{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
+.doclink{border:1px solid var(--line);background:#f8fafc;border-radius:7px;padding:5px 8px;font-size:11px;cursor:pointer;color:var(--navy);font-weight:650}
+.doclink:hover{background:var(--sky);border-color:#9bc1db}
+.versionrow{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line);padding:8px 0;font-size:12px}
+.versionrow:last-child{border-bottom:0}
+@media(max-width:900px){.docviewer{grid-template-columns:1fr}.docframe{height:50vh}}
 .dropzone{display:block;border:2px dashed #b9ccdc;border-radius:12px;padding:26px;text-align:center;background:#f8fbfd;cursor:pointer;transition:.18s}
 .dropzone:hover,.dropzone.dragover{border-color:var(--blue);background:#eef7fd}
 .dropzone input{display:none}
@@ -192,6 +210,7 @@
 <div class="rulebox" id="uploadRules"></div>
 <div class="uploadfoot"><div class="subtle" id="uploadStatus">Idle</div><div class="actions"><button class="btn outline touchbtn" onclick="closeUpload()">Cancel</button><button class="btn primary touchbtn" id="startUploadBtn" onclick="startUpload()">Start Upload</button></div></div>
 </div></div></div>
+<div id="docModal" class="modal" onclick="if(event.target===this)closeDoc()"><div class="modalbox wide"><div class="modalhead"><div><b id="docTitle">Controlled Document</b><div class="subtle" id="docSubtitle"></div></div><button class="close" onclick="closeDoc()">×</button></div><div class="modalbody"><div class="docviewer"><div id="docPreview"></div><div id="docDetails"></div></div><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn outline touchbtn" id="docDownload" onclick="downloadDoc()">Download</button><button class="btn outline touchbtn" onclick="printDoc()">Print</button><button class="btn primary touchbtn" onclick="closeDoc()">Close</button></div></div></div></div>
 <div id="toast" class="toast"></div>
 <script src="app.js"></script>
 </body></html>

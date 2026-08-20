@@ -186,7 +186,7 @@ function selectTocPolicy(idx) {
   const uploadedIds = new Set(uploaded.map(f => String(f.id)));
   const trackerOnly = (p.forms || []).map(String).filter(id => !uploadedIds.has(id));
   const cards = [];
-  uploaded.forEach(f => cards.push(`<div class="form-info-card"><div class="form-source">Controlled Form</div><h6>${esc(f.id)} · ${esc(f.name)}</h6><div class="subtle">${esc(f.version)} · ${esc(f.file)} · Owner: ${esc(f.owner)}</div><div class="form-info-meta"><span class="pill">Risk ${f.risk}</span><span class="pill">${f.roles.length} roles</span><span class="pill">${f.departments.length} departments</span><span class="pill">${f.facilities.length} facilities</span></div><div class="subtle"><b>Roles:</b> ${f.roles.length ? f.roles.map(esc).join(', ') : 'None assigned'}</div><div class="subtle" style="margin-top:4px"><b>Departments:</b> ${f.departments.length ? f.departments.map(esc).join(', ') : 'None assigned'}</div><div class="subtle" style="margin-top:4px"><b>Notification:</b> ${esc(f.notify)}</div><div style="display:flex;gap:7px;justify-content:flex-end;margin-top:9px"><button class="btn primary touchbtn" onclick="toast('Form ${esc(f.id)} opened — current controlled version')">Open Form</button></div></div>`));
+  uploaded.forEach(f => cards.push(`<div class="form-info-card"><div class="form-source">Controlled Form</div><h6>${esc(f.id)} · ${esc(f.name)}</h6><div class="subtle">${esc(f.version)} · ${esc(f.file)} · Owner: ${esc(f.owner)}</div><div class="form-info-meta"><span class="pill">Risk ${f.risk}</span><span class="pill">${f.roles.length} roles</span><span class="pill">${f.departments.length} departments</span><span class="pill">${f.facilities.length} facilities</span></div><div class="subtle"><b>Roles:</b> ${f.roles.length ? f.roles.map(esc).join(', ') : 'None assigned'}</div><div class="subtle" style="margin-top:4px"><b>Departments:</b> ${f.departments.length ? f.departments.map(esc).join(', ') : 'None assigned'}</div><div class="subtle" style="margin-top:4px"><b>Notification:</b> ${esc(f.notify)}</div><div style="display:flex;gap:7px;justify-content:flex-end;margin-top:9px"><button class="btn primary touchbtn" onclick="openForm('${esc(f.id)}')">Open Form</button></div></div>`));
   trackerOnly.forEach(id => cards.push(`<div class="form-info-card"><div class="form-source">Tracker-Linked Form</div><h6>Form ${esc(id)}</h6><div class="subtle">Referenced by the enterprise tracker. Version, owner, roles, departments, facilities and revision history are managed once the form is brought under control.</div></div>`));
   byId('tocPolicyInfo').innerHTML = `<div style="display:flex;justify-content:space-between;gap:12px;align-items:start"><div><div class="subtle">${esc(p.section)}</div><h3 style="margin:4px 0 8px">${esc(p.policy)} · ${esc(p.title)}</h3></div>${riskBadge(p.risk)}</div>
 <div class="risk-legend"><span class="r${p.risk}">Risk ${p.risk}: ${esc(p.basis || 'Enterprise risk classification')}</span><span style="background:#175c92">${esc(p.regulatory || 'Corporate')}</span></div>
@@ -245,7 +245,7 @@ const extOf = name => (name.split('.').pop() || '').toLowerCase();
 function pendingBlock(idx) {
   const list = PENDING_VERSIONS.get(idx) || [];
   if (!list.length) return '';
-  return `<div class="form-info-card" style="border-left:4px solid var(--r3)"><div class="form-source">Pending Upload</div>${list.map(f => `<div class="subtle"><b>${esc(f.name)}</b> · ${esc(fmtSize(f.size))} · uploaded ${esc(f.at)}</div>`).join('')}<div class="subtle" style="margin-top:6px">Awaiting review and approval before it becomes the published version.</div></div>`;
+  return `<div class="form-info-card" style="border-left:4px solid var(--r3)"><div class="form-source">Pending Upload</div>${list.map((f, i) => `<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin:4px 0"><div class="subtle"><b>${esc(f.name)}</b> · ${esc(fmtSize(f.size))} · uploaded ${esc(f.at)}</div><button class="btn outline" style="padding:5px 9px;font-size:11px" onclick="openPendingUpload(${idx}, ${i})">Open</button></div>`).join('')}<div class="subtle" style="margin-top:6px">Awaiting review and approval before it becomes the published version.</div></div>`;
 }
 
 function renderUploadRules() {
@@ -452,7 +452,7 @@ async function processRow(r) {
   INGESTED.add(r.fp);
   if (r.kind !== 'form' && r.targetIdx !== null) {
     const list = PENDING_VERSIONS.get(r.targetIdx) || [];
-    list.push({name: r.name, size: r.file.size, at: new Date().toLocaleString()});
+    list.push({name: r.name, size: r.file.size, at: new Date().toLocaleString(), file: r.file, ext: r.ext});
     PENDING_VERSIONS.set(r.targetIdx, list);
   }
   renderQueue();
@@ -487,3 +487,141 @@ document.addEventListener('DOMContentLoaded', () => {
   ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('dragover'); }));
   dz.addEventListener('drop', e => { if (e.dataTransfer && e.dataTransfer.files) queueFiles(e.dataTransfer.files); });
 });
+
+
+/* ================================================================= viewer
+   Opening a controlled document. Files uploaded in this session have real
+   bytes, so they render for real (PDF in a frame, images, text). Seed
+   records have no file attached, so the viewer shows the controlled-copy
+   record sheet instead of pretending to render one.
+   ======================================================================== */
+
+let docObjectUrl = null;
+let docPrintable = null;   // {blob, filename} for download/print
+
+function closeDoc() {
+  byId('docModal').classList.remove('show');
+  if (docObjectUrl) { URL.revokeObjectURL(docObjectUrl); docObjectUrl = null; }
+  docPrintable = null;
+}
+
+function renderDocDetails(d) {
+  const rows = d.meta.map(([label, value]) => `<dt>${esc(label)}</dt><dd>${value}</dd>`).join('');
+  const links = (d.linkedPolicies || []).map(i => {
+    const p = POLICIES[i];
+    return `<button class="doclink" onclick="closeDoc();openPolicy(${i})">${esc(p.policy)} · ${esc(p.title)}</button>`;
+  }).join('');
+  const versions = (d.versions || []).map(v =>
+    `<div class="versionrow"><div><b>${esc(v.label)}</b><div class="subtle">${esc(v.note)}</div></div><span class="status ${v.cls}">${esc(v.state)}</span></div>`).join('');
+  return `<dl class="docmeta">${rows}</dl>
+${links ? `<dt class="docmeta" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-top:13px">Linked policies</dt><div class="doclinks">${links}</div>` : ''}
+${versions ? `<div style="margin-top:15px"><div class="panelhead" style="margin-bottom:4px"><h4 style="font-size:14px">Version history</h4></div>${versions}</div>` : ''}`;
+}
+
+/* Renders the actual file when we have it; otherwise an honest placeholder. */
+function renderDocPreview(d) {
+  const host = byId('docPreview');
+  if (!d.file) { host.innerHTML = d.placeholder; return; }
+  docObjectUrl = URL.createObjectURL(d.file);
+  docPrintable = {url: docObjectUrl, filename: d.file.name};
+  const ext = (d.file.name.split('.').pop() || '').toLowerCase();
+  if (ext === 'pdf') {
+    host.innerHTML = `<iframe class="docframe" src="${docObjectUrl}" title="${esc(d.file.name)}"></iframe>`;
+  } else if (['png','jpg','jpeg','tif','tiff'].includes(ext)) {
+    host.innerHTML = `<img class="docimage" src="${docObjectUrl}" alt="${esc(d.file.name)}">`;
+  } else if (['txt','md','csv'].includes(ext)) {
+    host.innerHTML = '<div class="doctext">Loading…</div>';
+    d.file.text().then(t => { host.innerHTML = `<div class="doctext">${esc(t.slice(0, 20000))}</div>`; });
+  } else {
+    // .docx/.xlsx: production converts these to PDF on ingest (LibreOffice headless)
+    host.innerHTML = `<div class="paper"><div class="paperhead"><h4>${esc(d.file.name)}</h4><div class="subtle">${esc(fmtSize(d.file.size))} · .${esc(ext)}</div></div>
+<p><b>No inline preview for this format in the prototype.</b></p>
+<p>On ingest the server converts Office formats to a display PDF (LibreOffice headless, step 8 of the pipeline) and staff read that rendition — the original is retained but never served for reading. The uploaded file is intact here: use <b>Download</b> to open it in Word or Excel.</p></div>`;
+  }
+}
+
+function openDocViewer(d) {
+  byId('docTitle').textContent = d.title;
+  byId('docSubtitle').textContent = d.subtitle;
+  byId('docDetails').innerHTML = renderDocDetails(d);
+  renderDocPreview(d);
+  byId('docDownload').disabled = !d.file;
+  byId('docDownload').title = d.file ? 'Download this file' : 'No file attached to this seed record';
+  byId('docModal').classList.add('show');
+}
+
+function downloadDoc() {
+  if (!docPrintable) { toast('This record has no file attached in the prototype'); return; }
+  const a = document.createElement('a');
+  a.href = docPrintable.url;
+  a.download = docPrintable.filename;
+  a.click();
+  toast(`Downloading ${docPrintable.filename}`);
+}
+function printDoc() {
+  const frame = document.querySelector('#docPreview iframe');
+  if (frame && frame.contentWindow) { frame.contentWindow.focus(); frame.contentWindow.print(); return; }
+  window.print();
+}
+
+/* Controlled form from the seed library — no bytes, so show the record sheet. */
+function openForm(formId) {
+  const f = CONTROLLED_FORMS.find(x => x.id === formId);
+  if (!f) { toast('Form not found'); return; }
+  const linked = (f.policies || [])
+    .map(num => POLICIES.findIndex(p => p.policy === String(num)))
+    .filter(i => i >= 0);
+  openDocViewer({
+    title: `${f.id} · ${f.name}`,
+    subtitle: `${f.version} · ${f.file} · Owner: ${f.owner}`,
+    file: null,
+    linkedPolicies: linked,
+    meta: [
+      ['Status', '<span class="status good">Current controlled version</span>'],
+      ['Risk level', riskBadge(f.risk)],
+      ['Source file', esc(f.file)],
+      ['Assigned roles', f.roles.length ? esc(f.roles.join(', ')) : '<span class="subtle">None assigned</span>'],
+      ['Departments', f.departments.length ? esc(f.departments.join(', ')) : '<span class="subtle">None assigned</span>'],
+      ['Facilities', esc(f.facilities.join(', '))],
+      ['Notification rule', esc(f.notify)]
+    ],
+    versions: [
+      {label: f.version, note: 'Published — current controlled version', state: 'Current', cls: 'good'},
+      {label: 'v' + (parseFloat(f.version.replace(/^v/, '')) - 0.1).toFixed(1), note: 'Superseded — retained for audit', state: 'Superseded', cls: 'pending'}
+    ],
+    placeholder: `<div class="paper"><div class="watermark">CONTROLLED COPY</div>
+<div class="paperhead"><h4>${esc(f.name)}</h4><div class="subtle">Form ${esc(f.id)} · ${esc(f.version)} · Freedom Behavioral Health</div></div>
+<p><b>This is a seed record — no file is attached in the prototype.</b> Once ${esc(f.file)} is uploaded through Bulk Upload, this pane renders the controlled PDF itself, served by a short-lived signed URL and logged to the audit trail.</p>
+<p>The form is issued to <b>${esc(f.roles.join(', ') || 'no roles yet')}</b> across ${esc(f.facilities.join(', '))}, under the rule <b>${esc(f.notify)}</b>.</p>
+<div class="fieldline"></div><div class="subtle">Patient / unit</div>
+<div class="fieldline"></div><div class="subtle">Completed by</div>
+<div class="fieldline"></div><div class="subtle">Date · Signature</div>
+<p class="subtle" style="margin-top:18px">Obsolete versions are watermarked SUPERSEDED and cannot be assigned.</p></div>`
+  });
+}
+
+/* A document uploaded in this session — real bytes, real render. */
+function openPendingUpload(policyIdx, i) {
+  const entry = (PENDING_VERSIONS.get(policyIdx) || [])[i];
+  if (!entry) { toast('Upload not found'); return; }
+  const p = POLICIES[policyIdx];
+  openDocViewer({
+    title: entry.name,
+    subtitle: `Pending version for ${p.policy} · ${p.title}`,
+    file: entry.file,
+    linkedPolicies: [policyIdx],
+    meta: [
+      ['Status', '<span class="status pending">Pending review — not published</span>'],
+      ['Uploaded', esc(entry.at)],
+      ['Size', esc(fmtSize(entry.size))],
+      ['Ingest pipeline', '<span class="status good">Scanned · extracted · indexed</span>'],
+      ['Policy', `${esc(p.policy)} · ${esc(p.title)}`],
+      ['Section', esc(p.section)]
+    ],
+    versions: [
+      {label: 'This upload', note: 'Awaiting approval', state: 'Pending', cls: 'pending'},
+      {label: 'Current published', note: 'In force until this is approved', state: 'Current', cls: 'good'}
+    ],
+    placeholder: ''
+  });
+}

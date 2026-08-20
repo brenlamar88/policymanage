@@ -83,7 +83,8 @@ function renderPolicyTable() {
   byId('policyRows').innerHTML = data.length ? data.slice(0, 150).map(({p, idx}, i) => {
     const linked = formsForPolicy(p.policy).map(f => f.id).concat((p.forms || []).map(String));
     const uniq = [...new Set(linked)];
-    return `<tr><td>${riskBadge(p.risk)}</td><td><div class="policytitle" onclick="openPolicy(${idx})">${esc(p.policy)} · ${esc(p.title)}</div><div class="subtle">${esc(p.section)}</div></td><td>${esc(p.regulatory || 'Corporate')}</td><td>${uniq.length ? uniq.map(f => `<span class="tag">${esc(f)}</span>`).join('') : '—'}</td><td>${statusFor(p, i)}</td><td><button class="btn outline touchbtn" onclick="openPolicy(${idx})">Open</button></td></tr>`;
+    const pending = pendingCount(idx);
+    return `<tr><td>${riskBadge(p.risk)}</td><td><div class="policytitle" onclick="openPolicy(${idx})">${esc(p.policy)} · ${esc(p.title)}</div><div class="subtle">${esc(p.section)}${pending ? ` · <span class="status pendingpill">${pending} pending upload${pending === 1 ? '' : 's'}</span>` : ''}</div></td><td>${esc(p.regulatory || 'Corporate')}</td><td>${uniq.length ? uniq.map(f => `<span class="tag">${esc(f)}</span>`).join('') : '—'}</td><td>${statusFor(p, i)}</td><td><button class="btn outline touchbtn" onclick="openPolicy(${idx})">Open</button></td></tr>`;
   }).join('') : '<tr><td colspan="6" class="subtle" style="text-align:center;padding:26px">No policies match the current filters.</td></tr>';
 }
 function resetLibraryFilters() {
@@ -136,21 +137,41 @@ function renderTOC() {
     const high = POLICIES.filter(p => p.section === s && p.risk >= 4).length;
     const formRefs = POLICIES.filter(p => p.section === s)
       .reduce((a, p) => a + ((p.forms || []).length) + formsForPolicy(p.policy).length, 0);
-    return `<div class="toccard" onclick="openTocSection('${esc(s)}')"><h5>${esc(s)}</h5><div class="meta"><span>${n} policies</span><span>${high} high-risk</span></div><div class="meta" style="margin-top:6px"><span>▧ ${formRefs} form links</span><span>Touch to open</span></div><div class="bar progress"><span style="width:${Math.min(100, Math.round(high / Math.max(1, n) * 100))}%"></span></div></div>`;
+    return `<button type="button" class="toccard" data-section="${esc(s)}" aria-controls="tocPolicyList" onclick="openTocSection('${esc(s)}')"><h5>${esc(s)}</h5><div class="meta"><span>${n} policies</span><span>${high} high-risk</span></div><div class="meta" style="margin-top:6px"><span>▧ ${formRefs} form links</span><span class="openhint">View ${n} policies ›</span></div><div class="bar progress"><span style="width:${Math.min(100, Math.round(high / Math.max(1, n) * 100))}%"></span></div></button>`;
   }).join('');
 }
 function openTocSection(s) {
   showView('toc', 'Enterprise Table of Contents');
   currentSection = s;
-  const rows = POLICIES.map((p, i) => ({p, i})).filter(x => x.p.section === s);
-  byId('tocSectionTitle').textContent = s;
-  byId('tocSectionMeta').textContent = `${rows.length} policies · select a policy for current information and forms`;
+  document.querySelectorAll('.toccard').forEach(c => c.classList.toggle('active', c.dataset.section === s));
+  const search = byId('tocSectionSearch'), risk = byId('tocSectionRisk');
+  search.value = ''; search.disabled = false;
+  risk.value = ''; risk.disabled = false;
+  renderTocPolicyList();
+  // the section list sits below the card grid — bring it into view so the click has a visible result
+  byId('tocWorkspace').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+function renderTocPolicyList() {
+  if (!currentSection) return;
+  const q = (byId('tocSectionSearch').value || '').toLowerCase();
+  const risk = byId('tocSectionRisk').value;
+  const all = POLICIES.map((p, i) => ({p, i})).filter(x => x.p.section === currentSection);
+  const rows = all.filter(({p}) =>
+    (!q || (p.policy + ' ' + p.title).toLowerCase().includes(q)) &&
+    (!risk || String(p.risk) === risk));
+  byId('tocSectionTitle').textContent = currentSection;
+  byId('tocSectionMeta').textContent = rows.length === all.length
+    ? `${all.length} policies · select a policy for current information and forms`
+    : `Showing ${rows.length} of ${all.length} policies`;
   byId('tocPolicyList').innerHTML = rows.length ? rows.map(({p, i}) => {
     const forms = (p.forms || []).length + formsForPolicy(p.policy).length;
-    return `<div class="tocpolicyrow" id="toc-policy-${i}" onclick="selectTocPolicy(${i})"><div>${riskBadge(p.risk)}</div><div><div class="policytitle">${esc(p.policy)} · ${esc(p.title)}</div><div class="subtle">${esc(p.regulatory || 'Corporate')} · ${forms} form link${forms === 1 ? '' : 's'}</div></div><span class="pill">Open ›</span></div>`;
-  }).join('') : '<div class="toc-empty">No policies in this section.</div>';
+    const pending = pendingCount(i);
+    return `<div class="tocpolicyrow" id="toc-policy-${i}" onclick="selectTocPolicy(${i})"><div>${riskBadge(p.risk)}</div><div><div class="policytitle">${esc(p.policy)} · ${esc(p.title)}</div><div class="subtle">${esc(p.regulatory || 'Corporate')} · ${forms} form link${forms === 1 ? '' : 's'}${pending ? ` · <span class="status pendingpill">${pending} pending upload${pending === 1 ? '' : 's'}</span>` : ''}</div></div><span class="pill">Open ›</span></div>`;
+  }).join('') : '<div class="toc-empty">No policies match this filter.</div>';
   if (rows.length) selectTocPolicy(rows[0].i);
 }
+
 function openSectionInLibrary() {
   if (!currentSection) { toast('Select a TOC section first'); return; }
   filterSection(currentSection);
@@ -171,6 +192,7 @@ function selectTocPolicy(idx) {
 <div class="risk-legend"><span class="r${p.risk}">Risk ${p.risk}: ${esc(p.basis || 'Enterprise risk classification')}</span><span style="background:#175c92">${esc(p.regulatory || 'Corporate')}</span></div>
 <div class="formrow"><div class="field"><label>Current Revision</label><input value="${esc(p.revision || 'Current controlled version')}" readonly></div><div class="field"><label>Total Linked Forms</label><input value="${cards.length}" readonly></div></div>
 <div style="margin-top:13px"><div class="panelhead" style="margin-bottom:7px"><h4>Forms Associated With This Policy</h4><span class="pill">${cards.length} linked</span></div>${cards.length ? cards.join('') : '<div class="toc-empty" style="padding:18px">No forms are currently linked to this policy.</div>'}</div>
+${pendingBlock(idx)}
 <div style="display:flex;gap:7px;justify-content:flex-end;margin-top:12px"><button class="btn outline touchbtn" onclick="openPolicy(${idx})">Open Policy Record</button><button class="btn primary touchbtn" onclick="filterSection('${esc(p.section)}')">View Section in Library</button></div>`;
 }
 
@@ -183,5 +205,285 @@ function init() {
   renderQuickTOC();
   renderTOC();
   renderPolicyTable();
+  renderUploadRules();
 }
 document.addEventListener('DOMContentLoaded', init);
+
+
+/* ================================================================== uploads
+   Bulk ingestion of controlled documents. The prototype runs the real
+   client-side half — batch limits, type validation, fingerprint dedupe,
+   policy matching — and simulates the server pipeline stages described in
+   docs/file-uploads.md (virus scan, text extraction, PDF render, index).
+   ========================================================================= */
+
+const UPLOAD_RULES = {
+  accepted: ['pdf','docx','doc','xlsx','csv','pptx','png','jpg','jpeg','txt','md','tif','tiff'],
+  quarantine: ['docm','xlsm','pptm'],
+  blocked: ['exe','msi','sh','bat','js','jar','html','htm','zip','rar','7z','dll','app'],
+  maxBytes: 50 * 1024 * 1024,          // standard document
+  maxScanBytes: 250 * 1024 * 1024,     // scanned PDF/TIFF batches
+  scanExts: ['pdf','tif','tiff'],
+  maxFiles: 250,
+  maxBatchBytes: 2 * 1024 * 1024 * 1024,
+  concurrency: 4
+};
+const PIPELINE_STAGES = ['Virus scan', 'Text extract', 'Render PDF', 'Index'];
+
+let QUEUE = [];                 // files staged for this batch
+let queueSeq = 0;
+let uploading = false;
+const INGESTED = new Set();     // fingerprints already accepted this session
+const PENDING_VERSIONS = new Map();   // policy index -> [{name, size, at}]
+
+const pendingCount = idx => (PENDING_VERSIONS.get(idx) || []).length;
+const fmtSize = b => b >= 1024 * 1024 * 1024 ? (b / 1073741824).toFixed(2) + ' GB'
+  : b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB'
+  : b >= 1024 ? Math.round(b / 1024) + ' KB' : b + ' B';
+const extOf = name => (name.split('.').pop() || '').toLowerCase();
+
+function pendingBlock(idx) {
+  const list = PENDING_VERSIONS.get(idx) || [];
+  if (!list.length) return '';
+  return `<div class="form-info-card" style="border-left:4px solid var(--r3)"><div class="form-source">Pending Upload</div>${list.map(f => `<div class="subtle"><b>${esc(f.name)}</b> · ${esc(fmtSize(f.size))} · uploaded ${esc(f.at)}</div>`).join('')}<div class="subtle" style="margin-top:6px">Awaiting review and approval before it becomes the published version.</div></div>`;
+}
+
+function renderUploadRules() {
+  const el = byId('uploadRules');
+  if (!el) return;
+  el.innerHTML = `<b>Accepted:</b> ${UPLOAD_RULES.accepted.map(e => '.' + e).join(', ')} · <b>Quarantined (admin release):</b> ${UPLOAD_RULES.quarantine.map(e => '.' + e).join(', ')} · <b>Blocked:</b> executables, scripts, archives, HTML · <b>Limits:</b> ${fmtSize(UPLOAD_RULES.maxBytes)} per file (${fmtSize(UPLOAD_RULES.maxScanBytes)} for scanned PDF/TIFF), ${UPLOAD_RULES.maxFiles} files / ${fmtSize(UPLOAD_RULES.maxBatchBytes)} per batch. Blank controlled documents only — do not upload completed patient forms.`;
+}
+
+function openUpload() {
+  byId('uploadModal').classList.add('show');
+  renderUploadRules();
+}
+function closeUpload() {
+  if (uploading) { toast('Upload in progress — let the batch finish'); return; }
+  byId('uploadModal').classList.remove('show');
+}
+function clearQueue() {
+  if (uploading) { toast('Upload in progress'); return; }
+  QUEUE = [];
+  renderQueue();
+  toast('Queue cleared');
+}
+
+/* Prototype fingerprint: SHA-256 where the browser exposes it (secure context),
+   otherwise a cheap content hash. Production hashes the full file server-side. */
+async function fingerprint(file) {
+  const slice = await file.slice(0, Math.min(file.size, 8 * 1024 * 1024)).arrayBuffer();
+  if (window.crypto && crypto.subtle && crypto.subtle.digest) {
+    const digest = await crypto.subtle.digest('SHA-256', slice);
+    return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('') + ':' + file.size;
+  }
+  const bytes = new Uint8Array(slice);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < bytes.length; i++) { h ^= bytes[i]; h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16) + ':' + file.size;
+}
+
+function classify(file) {
+  const ext = extOf(file.name);
+  if (UPLOAD_RULES.blocked.includes(ext)) return {status: 'rejected', note: 'Blocked file type'};
+  if (UPLOAD_RULES.quarantine.includes(ext)) return {status: 'quarantine', note: 'Macro-enabled — admin release required'};
+  if (!UPLOAD_RULES.accepted.includes(ext)) return {status: 'rejected', note: `Unsupported type .${ext || '?'}`};
+  const cap = UPLOAD_RULES.scanExts.includes(ext) ? UPLOAD_RULES.maxScanBytes : UPLOAD_RULES.maxBytes;
+  if (file.size > cap) return {status: 'rejected', note: `Over the ${fmtSize(cap)} limit`};
+  if (file.size === 0) return {status: 'rejected', note: 'Empty file'};
+  return {status: 'ready', note: ''};
+}
+
+function inferKind(name) {
+  const n = name.toLowerCase();
+  const ext = extOf(name);
+  if (/^frm[-_ ]/.test(n) || n.includes('form')) return 'form';
+  if (['png','jpg','jpeg','txt','md','pptx'].includes(ext)) return 'attachment';
+  return 'policy';
+}
+
+/* Match "15008 Patient Rights v4.2.docx" -> policy 15008. Falls back to title
+   overlap, and flags ambiguity when a policy number repeats (e.g. 622). */
+function matchPolicy(name) {
+  const base = name.replace(/\.[^.]+$/, '');
+  const num = (base.match(/\b(\d{3,5})\b/) || [])[1];
+  const tokens = base.toLowerCase().split(/[^a-z0-9]+/).filter(t => t.length > 3);
+  const score = p => {
+    const title = p.title.toLowerCase();
+    return tokens.reduce((a, t) => a + (title.includes(t) ? 1 : 0), 0);
+  };
+  if (num) {
+    const hits = POLICIES.map((p, i) => ({p, i})).filter(x => x.p.policy === num);
+    if (hits.length === 1) return {idx: hits[0].i, note: ''};
+    if (hits.length > 1) {
+      const best = hits.map(x => ({...x, s: score(x.p)})).sort((a, b) => b.s - a.s)[0];
+      return {idx: best.i, note: best.s ? '' : `Policy ${num} repeats — verify the match`};
+    }
+  }
+  const ranked = POLICIES.map((p, i) => ({i, s: score(p)})).sort((a, b) => b.s - a.s)[0];
+  if (ranked && ranked.s >= 2) return {idx: ranked.i, note: 'Matched on title — verify'};
+  return {idx: null, note: 'No policy match — choose one'};
+}
+
+async function queueFiles(fileList) {
+  const files = [...fileList];
+  if (!files.length) return;
+  let added = 0, skipped = 0;
+  for (const file of files) {
+    if (QUEUE.length >= UPLOAD_RULES.maxFiles) { skipped++; continue; }
+    const batchBytes = QUEUE.reduce((a, r) => a + r.file.size, 0);
+    if (batchBytes + file.size > UPLOAD_RULES.maxBatchBytes) { skipped++; continue; }
+    const verdict = classify(file);
+    const row = {
+      id: ++queueSeq, file, name: file.name, ext: extOf(file.name),
+      kind: inferKind(file.name), targetIdx: null,
+      status: verdict.status, note: verdict.note, stage: '', progress: 0, fp: null
+    };
+    if (row.status === 'ready' || row.status === 'quarantine') {
+      row.fp = await fingerprint(file);
+      if (INGESTED.has(row.fp) || QUEUE.some(r => r.fp === row.fp)) {
+        row.status = 'duplicate';
+        row.note = 'Identical file already uploaded';
+      }
+    }
+    if (row.kind !== 'form') {
+      const m = matchPolicy(file.name);
+      row.targetIdx = m.idx;
+      if (m.note && row.status === 'ready') row.note = m.note;
+      if (m.idx === null && row.status === 'ready') { row.status = 'needs_match'; row.note = m.note; }
+    }
+    QUEUE.push(row);
+    added++;
+  }
+  renderQueue();
+  toast(skipped ? `${added} queued · ${skipped} skipped (batch limit)` : `${added} file${added === 1 ? '' : 's'} queued`);
+}
+
+function autoMatchAll() {
+  QUEUE.forEach(r => {
+    if (r.status === 'done' || r.kind === 'form') return;
+    const m = matchPolicy(r.name);
+    r.targetIdx = m.idx;
+    if (m.idx === null) { r.status = 'needs_match'; r.note = m.note; }
+    else if (r.status === 'needs_match') { r.status = 'ready'; r.note = m.note; }
+  });
+  renderQueue();
+  toast('Auto-match re-run across the queue');
+}
+
+const STATUS_CHIP = {
+  ready: ['good', 'Ready'], done: ['good', 'Ingested'], duplicate: ['pending', 'Duplicate'],
+  quarantine: ['pending', 'Quarantined'], needs_match: ['pending', 'Needs match'],
+  rejected: ['overdue', 'Rejected'], uploading: ['pending', 'Uploading'], failed: ['overdue', 'Failed']
+};
+
+function targetLabel(row) {
+  if (row.kind === 'form') return '<span class="subtle">New / existing controlled form</span>';
+  if (row.targetIdx === null || row.targetIdx === undefined) return '<span class="subtle">— unmatched —</span>';
+  const p = POLICIES[row.targetIdx];
+  return `<b>${esc(p.policy)}</b> · ${esc(p.title)}<div class="subtle">${esc(p.section)}</div>`;
+}
+
+function renderQueue() {
+  const host = byId('uploadQueue');
+  const total = QUEUE.reduce((a, r) => a + r.file.size, 0);
+  const ready = QUEUE.filter(r => r.status === 'ready').length;
+  const flagged = QUEUE.filter(r => ['rejected','duplicate','quarantine','needs_match','failed'].includes(r.status)).length;
+  byId('batchCount').textContent = QUEUE.length;
+  byId('batchSize').textContent = fmtSize(total);
+  byId('batchReady').textContent = ready;
+  byId('batchFlagged').textContent = flagged;
+  byId('startUploadBtn').disabled = !ready || uploading;
+  host.innerHTML = QUEUE.length ? QUEUE.map(r => {
+    const [cls, label] = STATUS_CHIP[r.status] || ['pending', r.status];
+    return `<tr id="qrow-${r.id}"><td><div class="filename">${esc(r.name)}</div>${r.stage ? `<div class="subtle">${esc(r.stage)}</div><div class="miniprogress"><span style="width:${r.progress}%"></span></div>` : ''}</td>
+<td><select class="rowselect" onchange="setKind(${r.id}, this.value)" ${r.status === 'done' ? 'disabled' : ''}>${['policy','form','attachment'].map(k => `<option value="${k}" ${r.kind === k ? 'selected' : ''}>${k === 'policy' ? 'Policy document' : k === 'form' ? 'Form template' : 'Attachment'}</option>`).join('')}</select></td>
+<td>${esc(fmtSize(r.file.size))}<div class="subtle">.${esc(r.ext)}</div></td>
+<td id="qtarget-${r.id}">${targetLabel(r)}${r.status === 'done' || r.kind === 'form' ? '' : `<div><button class="btn outline" style="padding:4px 8px;font-size:11px;margin-top:5px" onclick="changeTarget(${r.id})">Change</button></div>`}</td>
+<td><span class="status ${cls}">${esc(label)}</span>${r.note ? `<div class="subtle">${esc(r.note)}</div>` : ''}</td>
+<td>${r.status === 'done' ? '' : `<button class="btn outline" style="padding:4px 8px;font-size:11px" onclick="removeRow(${r.id})">Remove</button>`}</td></tr>`;
+  }).join('') : '<tr><td colspan="6" class="subtle" style="text-align:center;padding:26px">No files queued yet.</td></tr>';
+}
+
+function setKind(id, kind) {
+  const r = QUEUE.find(x => x.id === id);
+  if (!r) return;
+  r.kind = kind;
+  if (kind === 'form') { r.targetIdx = null; if (r.status === 'needs_match') { r.status = 'ready'; r.note = ''; } }
+  else if (r.targetIdx === null) { const m = matchPolicy(r.name); r.targetIdx = m.idx; r.status = m.idx === null ? 'needs_match' : 'ready'; r.note = m.note; }
+  renderQueue();
+}
+
+function changeTarget(id) {
+  const r = QUEUE.find(x => x.id === id);
+  if (!r) return;
+  const cell = byId(`qtarget-${id}`);
+  const opts = POLICIES.map((p, i) => `<option value="${i}" ${i === r.targetIdx ? 'selected' : ''}>${esc(p.policy)} · ${esc(p.title)}</option>`).join('');
+  cell.innerHTML = `<select class="rowselect" onchange="setTarget(${id}, this.value)"><option value="">— unmatched —</option>${opts}</select>`;
+  cell.querySelector('select').focus();
+}
+function setTarget(id, value) {
+  const r = QUEUE.find(x => x.id === id);
+  if (!r) return;
+  r.targetIdx = value === '' ? null : Number(value);
+  if (r.targetIdx === null) { r.status = 'needs_match'; r.note = 'No policy match — choose one'; }
+  else if (['needs_match','ready'].includes(r.status)) { r.status = 'ready'; r.note = 'Manually matched'; }
+  renderQueue();
+}
+function removeRow(id) {
+  QUEUE = QUEUE.filter(r => r.id !== id);
+  renderQueue();
+}
+
+/* Simulates the server pipeline: each ready file walks the stages with a
+   bounded number in flight, exactly like the worker would. */
+const wait = ms => new Promise(res => setTimeout(res, ms));
+
+async function processRow(r) {
+  r.status = 'uploading';
+  for (let i = 0; i < PIPELINE_STAGES.length; i++) {
+    r.stage = PIPELINE_STAGES[i];
+    r.progress = Math.round((i + 1) / PIPELINE_STAGES.length * 100);
+    renderQueue();
+    await wait(140 + Math.round(i * 40));
+  }
+  r.status = 'done';
+  r.stage = 'Ready for review';
+  INGESTED.add(r.fp);
+  if (r.kind !== 'form' && r.targetIdx !== null) {
+    const list = PENDING_VERSIONS.get(r.targetIdx) || [];
+    list.push({name: r.name, size: r.file.size, at: new Date().toLocaleString()});
+    PENDING_VERSIONS.set(r.targetIdx, list);
+  }
+  renderQueue();
+}
+
+async function startUpload() {
+  if (uploading) return;
+  const batch = QUEUE.filter(r => r.status === 'ready');
+  if (!batch.length) { toast('Nothing in the queue is ready to ingest'); return; }
+  uploading = true;
+  byId('startUploadBtn').disabled = true;
+  byId('uploadStatus').textContent = `Ingesting ${batch.length} file${batch.length === 1 ? '' : 's'}…`;
+  let cursor = 0;
+  const worker = async () => { while (cursor < batch.length) await processRow(batch[cursor++]); };
+  await Promise.all(Array.from({length: Math.min(UPLOAD_RULES.concurrency, batch.length)}, worker));
+  uploading = false;
+  const done = QUEUE.filter(r => r.status === 'done').length;
+  const flagged = QUEUE.filter(r => ['rejected','duplicate','quarantine','needs_match','failed'].includes(r.status)).length;
+  byId('uploadStatus').textContent = `${done} ingested · ${flagged} still need attention`;
+  renderQueue();
+  renderPolicyTable();
+  renderTOC();
+  if (currentSection) renderTocPolicyList();
+  toast(`${done} document${done === 1 ? '' : 's'} ingested — pending review`);
+}
+
+/* drag and drop over the whole zone */
+document.addEventListener('DOMContentLoaded', () => {
+  const dz = byId('dropzone');
+  if (!dz) return;
+  ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('dragover'); }));
+  dz.addEventListener('drop', e => { if (e.dataTransfer && e.dataTransfer.files) queueFiles(e.dataTransfer.files); });
+});

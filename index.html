@@ -21,6 +21,7 @@
 .hero h3{font-size:25px;margin:0 0 8px}.hero p{margin:0;opacity:.85;max-width:760px}
 .hero .hero-actions{display:flex;gap:8px;align-items:center}
 .btn{border:0;border-radius:9px;padding:10px 14px;cursor:pointer;font-weight:650}
+.btn:disabled{opacity:.5;cursor:not-allowed}
 .btn.primary{background:var(--green);color:#fff}.btn.white{background:#fff;color:var(--navy)}.btn.outline{background:#fff;border:1px solid var(--line);color:var(--navy)}
 .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin:18px 0}
 .card{background:#fff;border:1px solid var(--line);border-radius:13px;box-shadow:0 2px 8px rgba(15,23,42,.03)}
@@ -51,8 +52,11 @@
 .status.good{background:#eaf6e8;color:#357a2f}.status.pending{background:#fff7dd;color:#8a6500}.status.overdue{background:#fff0f0;color:#ad2c34}
 .view{display:none}.view.active{display:block}
 .tocgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.toccard{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px;cursor:pointer}
+.toccard{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px;cursor:pointer;width:100%;text-align:left;font:inherit;color:inherit;display:block;touch-action:manipulation}
 .toccard:hover{border-color:#9bc1db;box-shadow:var(--shadow)}
+.toccard:focus-visible{outline:3px solid #9bc1db;outline-offset:2px}
+.toccard.active{border-color:var(--blue);box-shadow:var(--shadow);background:#f7fbfe}
+.toccard .openhint{color:var(--blue);font-weight:700}
 .toccard h5{margin:0 0 6px;font-size:13px}
 .toccard .meta{display:flex;justify-content:space-between;color:var(--muted);font-size:11px}
 .toccard .bar{margin-top:10px}
@@ -99,6 +103,28 @@
 .form-source{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--blue)}
 .tocsectionhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:4px}
 .toc-empty{padding:28px;text-align:center;color:var(--muted)}
+.modalbox.wide{width:min(1120px,96vw)}
+.dropzone{display:block;border:2px dashed #b9ccdc;border-radius:12px;padding:26px;text-align:center;background:#f8fbfd;cursor:pointer;transition:.18s}
+.dropzone:hover,.dropzone.dragover{border-color:var(--blue);background:#eef7fd}
+.dropzone input{display:none}
+.dropzone .dzicon{font-size:28px}
+.batchbar{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0}
+.batchbar>div{background:#f8fafc;border:1px solid var(--line);border-radius:9px;padding:9px;text-align:center}
+.batchbar b{display:block;font-size:18px}
+.queuewrap{max-height:44vh;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.queuewrap .table th{position:sticky;top:0;z-index:1}
+.queuewrap .table td{font-size:12px}
+.filename{font-weight:650;word-break:break-all}
+.rowselect{border:1px solid var(--line);border-radius:7px;padding:5px;background:#fff;font-size:12px;max-width:230px}
+.miniprogress{height:5px;border-radius:99px;background:#e9eef3;overflow:hidden;margin-top:5px}
+.miniprogress span{display:block;height:100%;background:var(--green);transition:width .2s}
+.uploadfoot{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:14px;flex-wrap:wrap}
+.uploadfoot .actions{display:flex;gap:8px;flex-wrap:wrap}
+.rulebox{background:#f8fafc;border:1px solid var(--line);border-radius:9px;padding:10px;font-size:11px;color:var(--muted);margin-top:10px}
+.sectionfilter{display:flex;gap:8px;margin:10px 0 4px;flex-wrap:wrap}
+.sectionfilter input{flex:1;min-width:180px;border:1px solid var(--line);border-radius:9px;padding:9px 11px}
+.pendingpill{background:#fff7dd;color:#8a6500;font-weight:700}
+@media(max-width:760px){.batchbar{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:1100px){.kpis{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.tocgrid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:1000px){.tocworkspace{grid-template-columns:1fr}.tocinfo{position:static}}
 @media(max-width:760px){.app{grid-template-columns:1fr}.sidebar{display:none}.content{padding:16px}.kpis,.tocgrid{grid-template-columns:1fr}.topbar{padding:0 14px}.hero{flex-direction:column}.toolbar{flex-wrap:wrap}.select{flex:1}.user span{display:none}}
@@ -141,6 +167,7 @@
 <select id="sectionFilter" class="select" onchange="renderPolicyTable()"><option value="">All TOC Sections</option></select>
 <select id="riskFilter" class="select" onchange="renderPolicyTable()"><option value="">All Risk Levels</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select>
 <button class="btn outline touchbtn" onclick="resetLibraryFilters()">Reset Filters</button>
+<button class="btn primary touchbtn" onclick="openUpload()">⇧ Bulk Upload</button>
 </div>
 <div class="tablewrap"><table class="table"><thead><tr><th>Risk</th><th>Policy</th><th>Regulatory Driver</th><th>Associated Forms</th><th>Control Status</th><th></th></tr></thead><tbody id="policyRows"></tbody></table></div>
 <div class="footer-note">Prototype displays the first 150 matching records for performance; production would use server-side pagination, full-text search, and document indexing.</div></div></section>
@@ -148,14 +175,23 @@
 <section id="toc" class="view">
 <div class="hero"><div><h3>Enterprise Policy Table of Contents</h3><p>Digital TOC organized from the uploaded tracker. Touch a section to review its policies, then touch a policy to see current policy information and all linked forms.</p></div></div>
 <div id="tocGrid" class="tocgrid" style="margin-top:16px"></div>
-<div class="tocworkspace">
+<div class="tocworkspace" id="tocWorkspace">
 <div class="card panel"><div class="tocsectionhead"><div><h4 id="tocSectionTitle" style="margin:0">Select a TOC Section</h4><div id="tocSectionMeta" class="subtle">Choose one of the sections above.</div></div><button class="btn outline touchbtn" onclick="openSectionInLibrary()">Open Section in Library</button></div>
+<div class="sectionfilter"><input id="tocSectionSearch" placeholder="Filter policies in this section…" oninput="renderTocPolicyList()" disabled><select id="tocSectionRisk" class="select" onchange="renderTocPolicyList()" disabled><option value="">All risk levels</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select></div>
 <div id="tocPolicyList" class="tocpolicies"><div class="toc-empty">Touch a section above to load its policies.</div></div></div>
 <div class="card panel tocinfo"><div class="panelhead"><div><h4>Current Policy Info</h4><div class="subtle">Policy details + associated forms</div></div></div><div id="tocPolicyInfo"><div class="toc-empty">Select a policy to display its current information and forms.</div></div></div>
 </div></section>
 
 </div></main></div>
 <div id="policyModal" class="modal" onclick="if(event.target===this)this.classList.remove('show')"><div class="modalbox"><div class="modalhead"><b>Controlled Policy Record</b><button class="close" onclick="byId('policyModal').classList.remove('show')">×</button></div><div id="modalContent" class="modalbody"></div></div></div>
+<div id="uploadModal" class="modal" onclick="if(event.target===this)closeUpload()"><div class="modalbox wide"><div class="modalhead"><div><b>Bulk Upload Controlled Documents</b><div class="subtle">Drop a folder or select many files — each one is validated, fingerprinted, and matched to a policy.</div></div><button class="close" onclick="closeUpload()">×</button></div><div class="modalbody">
+<label class="dropzone" id="dropzone" for="bulkFiles"><input id="bulkFiles" type="file" multiple accept=".pdf,.doc,.docx,.xlsx,.csv,.pptx,.png,.jpg,.jpeg,.txt,.md,.tif,.tiff,.docm,.xlsm,.pptm" onchange="queueFiles(this.files)"><div class="dzicon">⇧</div><b>Drop files here, or touch to select</b><div class="subtle" style="margin-top:5px">PDF, DOCX, DOC, XLSX, CSV, PPTX, PNG, JPG, TXT, MD, TIFF · up to 250 files / 2 GB per batch</div></label>
+<div style="display:flex;gap:8px;justify-content:center;margin-top:9px;flex-wrap:wrap"><button class="btn outline touchbtn" onclick="byId('bulkFolder').click()">Select a folder</button><input id="bulkFolder" type="file" multiple webkitdirectory directory style="display:none" onchange="queueFiles(this.files)"><button class="btn outline touchbtn" onclick="autoMatchAll()">Re-run auto-match</button><button class="btn outline touchbtn" onclick="clearQueue()">Clear queue</button></div>
+<div class="batchbar"><div><b id="batchCount">0</b><span class="subtle">Files queued</span></div><div><b id="batchSize">0 MB</b><span class="subtle">Batch size</span></div><div><b id="batchReady">0</b><span class="subtle">Ready to ingest</span></div><div><b id="batchFlagged">0</b><span class="subtle">Need attention</span></div></div>
+<div class="queuewrap"><table class="table"><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Matched policy / form</th><th>Status</th><th></th></tr></thead><tbody id="uploadQueue"><tr><td colspan="6" class="subtle" style="text-align:center;padding:26px">No files queued yet.</td></tr></tbody></table></div>
+<div class="rulebox" id="uploadRules"></div>
+<div class="uploadfoot"><div class="subtle" id="uploadStatus">Idle</div><div class="actions"><button class="btn outline touchbtn" onclick="closeUpload()">Cancel</button><button class="btn primary touchbtn" id="startUploadBtn" onclick="startUpload()">Start Upload</button></div></div>
+</div></div></div>
 <div id="toast" class="toast"></div>
 <script src="app.js"></script>
 </body></html>

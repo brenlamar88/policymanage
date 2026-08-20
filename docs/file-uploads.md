@@ -32,7 +32,7 @@ is notified, and release requires converting to a macro-free equivalent.
 
 - 50 MB per file (standard), 250 MB for scanned TIFF/PDF batches.
 - 1,000 pages per document.
-- 25 files per upload batch.
+- 250 files / 2 GB per batch, 4 files processed concurrently.
 - Storage quota alert at 80% of the plan allowance.
 
 ## 2. Ingestion pipeline
@@ -59,6 +59,46 @@ reaches `ready`.
 
 Steps 6–9 run as background jobs (Supabase Edge Function or a small worker container);
 1–5 run synchronously so the uploader gets an immediate accept/reject.
+
+## 2a. Bulk upload
+
+Loading a policy library is a batch job, not a one-file-at-a-time job, so upload is built
+around batches from the start.
+
+**Input** — multi-select, drag-and-drop of many files at once, or drop/choose an entire
+folder (`webkitdirectory`). 250 files or 2 GB per batch; larger libraries go in successive
+batches, and the fingerprint check means re-dropping the same folder is safe.
+
+**Per-file triage, before anything is sent.** Each file is classified as *ready*,
+*needs match*, *duplicate*, *quarantined*, or *rejected*, with the reason shown on the row.
+A bad file never blocks the batch — the ready ones ingest and the flagged ones stay in the
+queue for the admin to fix.
+
+**Auto-matching to a policy.** The filename is parsed for a 3–5 digit policy number
+(`15008 Patient Rights v4.2.docx` → policy 15008). When a number repeats across sections
+(`622` in Transportation), the title is scored against the candidates and the best match
+wins; when nothing matches by number, title-token overlap is tried and the row is flagged
+"verify". Anything still unmatched is held as *needs match* and the admin picks the target
+from a list. Nothing is ingested against a guess.
+
+**Naming convention that makes this near-100%:** `{policy number} {title} {version}.ext`,
+e.g. `11004 Medication Variance v3.0.docx`. Worth circulating before the first bulk load.
+
+**Duplicates** are caught by fingerprint (SHA-256 of content + size), so the same document
+arriving twice under two names is detected — which is the normal case when several
+facilities send in their copies.
+
+**Progress and partial failure.** Each file shows its pipeline stage (virus scan → text
+extract → render → index). A failure marks that row failed with a reason and leaves the
+rest of the batch running; the batch closes with an "N ingested, M need attention" summary.
+
+**What a batch produces.** Ingested files land as *pending versions* against their matched
+policy — visible in the library and the TOC, but not published. Approval is a separate,
+deliberate step, so a bulk load can never silently replace what staff are reading.
+
+**For very large migrations** (a full 379-policy library with attachments), the same
+endpoint accepts a manifest CSV (`filename, policy_number, title, version, effective_date`)
+so matching is driven by the tracker export instead of filename parsing.
 
 ## 3. Storage layout
 

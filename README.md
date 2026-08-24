@@ -12,7 +12,7 @@ Five primary menu options are visible and built out:
 4. **Table of Contents** — the 17 enterprise TOC sections as clickable cards plus a Quick TOC in the sidebar; selecting a section opens the full list of its policies (with an in-section filter), and selecting a policy shows its current information and every linked form.
 5. **Assign Policies** — the admin side writes assignment rules (a policy, a TOC section, a risk band, or a form → facilities / departments / roles, with a due window and delivery rule) and each rule materializes one assignment per matching employee; the staff side is *My Assigned Policies*, where required reading is acknowledged with a timestamp.
 
-Other modules from the original concept ( Notification Center, Review Analytics, AI Regulatory Watch, Admin, Roles & Groups, Audit Trail) are intentionally not part of this build.
+Other modules from the original concept (Notification Center, Review Analytics, AI Regulatory Watch, Admin, Roles & Groups, Audit Trail) are intentionally not part of this build.
 
 ## Files
 

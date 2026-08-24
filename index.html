@@ -103,6 +103,24 @@
 .form-source{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--blue)}
 .tocsectionhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:4px}
 .toc-empty{padding:28px;text-align:center;color:var(--muted)}
+.assignment-preview{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:11px}
+.grouplabel{font-size:10px;text-transform:uppercase;letter-spacing:.45px;color:var(--muted);font-weight:800;margin-bottom:6px}
+.metricbar{display:flex;align-items:center;gap:8px;margin:8px 0}
+.metricbar label{width:110px;font-size:12px}
+.metricbar .progress{flex:1}
+.metricbar small{width:40px;text-align:right}
+.state-tabs{display:flex;gap:7px;flex-wrap:wrap;margin:16px 0 0}
+.state-tabs button{border:1px solid var(--line);background:#fff;border-radius:9px;padding:9px 13px;cursor:pointer;font-weight:650;min-height:44px}
+.state-tabs button.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.rulecard{padding:14px;border:1px solid var(--line);border-radius:11px;margin:9px 0;background:#fff}
+.rulecard.inactive{opacity:.62;background:#fbfcfd}
+.rulecard h5{margin:0 0 4px;font-size:14px;color:var(--navy)}
+.rulescope{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.scopechip{font-size:11px;padding:5px 8px;border-radius:999px;border:1px solid #d6e5ef;background:#eef5fa;color:#38556e}
+.scopechip.any{background:#f1f5f9;border-color:var(--line);color:var(--muted)}
+.checkline{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px}
+.checkline input{width:18px;height:18px}
+.assignwhy{font-size:11px;color:var(--muted)}
 .formmanage-grid{display:grid;grid-template-columns:1.05fr 1.45fr;gap:16px;margin-top:16px}
 .uploadzone{display:block;border:2px dashed #b9ccdc;border-radius:12px;padding:22px;text-align:center;background:#f8fbfd;cursor:pointer;transition:.18s}
 .uploadzone:hover{border-color:var(--blue);background:#f1f8fd}
@@ -169,6 +187,7 @@
 <button class="navbtn" data-view="library" onclick="showView('library','Policy &amp; Form Library')">▤ <span>Policy &amp; Form Library</span><span class="count" id="libraryNavCount">0</span></button>
 <button class="navbtn" data-view="forms" onclick="showView('forms','Forms Management Center')">▧ <span>Forms Management</span><span class="count" id="formNavCount">0</span></button>
 <button class="navbtn" data-view="toc" onclick="showView('toc','Enterprise Table of Contents')">☰ <span>Table of Contents</span><span class="count" id="tocNavCount">0</span></button>
+<button class="navbtn" data-view="assign" onclick="showView('assign','Policy Assignment Center')">✓ <span>Assign Policies</span><span class="count" id="assignNavCount">0</span></button>
 <div class="navlabel">Quick TOC — <span id="quickTocCount">0</span> Sections</div><div id="quickToc" class="quicktoc"></div>
 </aside>
 <main class="main">
@@ -228,6 +247,42 @@
 <div id="formsList"></div></div>
 
 </div></section>
+
+<section id="assign" class="view">
+<div class="hero"><div><h3>Policy Assignment Center</h3><p>Push controlled policies to an audience by facility, department, and role — then track who still owes an acknowledgement.</p></div><div class="hero-actions"><button class="btn white touchbtn" onclick="showAssignTab('mine')">My Assigned Policies</button></div></div>
+<div class="kpis" style="grid-template-columns:repeat(5,1fr)">
+<div class="card kpi"><div class="label">Active Rules</div><div class="value" id="kpiRules">0</div><div class="note">Assignment rules in force</div></div>
+<div class="card kpi"><div class="label">Staff Covered</div><div class="value" id="kpiCovered">0</div><div class="note">of <span id="kpiRoster">0</span> active employees</div></div>
+<div class="card kpi"><div class="label">Assignments</div><div class="value" id="kpiAssignments">0</div><div class="note">Policy × employee records</div></div>
+<div class="card kpi"><div class="label">Acknowledged</div><div class="value" id="kpiAckRate">0%</div><div class="note"><span id="kpiAckCount">0</span> completed</div></div>
+<div class="card kpi"><div class="label">Past Due</div><div class="value" id="kpiOverdue">0</div><div class="note">Outstanding after deadline</div></div>
+</div>
+<div class="state-tabs"><button id="tabRules" class="active" onclick="showAssignTab('rules')">Assignment Rules</button><button id="tabMine" onclick="showAssignTab('mine')">My Assigned Policies</button></div>
+
+<div id="assignRulesTab" class="formmanage-grid">
+<div class="card panel"><div class="panelhead"><div><h4 id="ruleEditorTitle">Create Assignment Rule</h4><div class="subtle">Leave an audience list empty to mean “all”.</div></div><span class="pill">Admin Only</span></div>
+<div class="field"><label>What is being assigned</label><select id="ruleSubject" onchange="onRuleSubjectChange()"><option value="policy">A single policy</option><option value="section">Every policy in a TOC section</option><option value="risk">Every policy at a risk level</option><option value="form">A controlled form</option></select></div>
+<div class="field" id="ruleSubjectPolicyWrap" style="margin-top:10px"><label>Policy <span class="required">*</span></label><input id="ruleSubjectSearch" placeholder="Search policy number or title…" oninput="renderRuleSubjectPolicies()" style="margin-bottom:6px"><select id="ruleSubjectPolicy" class="multi compact" size="6" onchange="renderRulePreview()"></select></div>
+<div class="field" id="ruleSubjectSectionWrap" style="margin-top:10px;display:none"><label>TOC Section <span class="required">*</span></label><select id="ruleSubjectSection" onchange="renderRulePreview()"></select></div>
+<div class="field" id="ruleSubjectRiskWrap" style="margin-top:10px;display:none"><label>Risk Level <span class="required">*</span></label><select id="ruleSubjectRisk" onchange="renderRulePreview()"><option value="5">5 — Immediate / Critical</option><option value="4">4 — High Risk</option><option value="3">3 — Operational Compliance</option><option value="2">2 — Low / Moderate</option><option value="1">1 — Administrative</option></select></div>
+<div class="field" id="ruleSubjectFormWrap" style="margin-top:10px;display:none"><label>Controlled Form <span class="required">*</span></label><select id="ruleSubjectForm" onchange="renderRulePreview()"></select></div>
+<div class="field" style="margin-top:10px"><label>Facilities</label><div class="multi-actions"><button type="button" class="mini-btn" onclick="selectAllMulti('ruleFacilities',true);renderRulePreview()">Select All</button><button type="button" class="mini-btn" onclick="selectAllMulti('ruleFacilities',false);renderRulePreview()">Clear</button></div><select id="ruleFacilities" class="multi compact" multiple onchange="renderRulePreview()"></select></div>
+<div class="field" style="margin-top:10px"><label>Departments</label><div class="multi-actions"><button type="button" class="mini-btn" onclick="selectAllMulti('ruleDepartments',true);renderRulePreview()">Select All</button><button type="button" class="mini-btn" onclick="selectAllMulti('ruleDepartments',false);renderRulePreview()">Clear</button></div><select id="ruleDepartments" class="multi compact" multiple onchange="renderRulePreview()"></select></div>
+<div class="field" style="margin-top:10px"><label>Hospital Roles</label><div class="multi-actions"><button type="button" class="mini-btn" onclick="selectAllMulti('ruleRoles',true);renderRulePreview()">Select All</button><button type="button" class="mini-btn" onclick="selectAllMulti('ruleRoles',false);renderRulePreview()">Clear</button></div><select id="ruleRoles" class="multi compact" multiple onchange="renderRulePreview()"></select></div>
+<div class="formrow"><div class="field"><label>Acknowledge within (days)</label><input id="ruleDueDays" type="number" min="1" value="3" onchange="renderRulePreview()"></div><div class="field"><label>Delivery</label><select id="ruleDelivery"><option>Portal + Email + Acknowledgement Required</option><option>Portal + Email</option><option>Portal Only</option><option>Email + Manager Escalation</option></select></div></div>
+<label class="checkline"><input type="checkbox" id="ruleRequiresAck" checked onchange="renderRulePreview()"> Require acknowledgement</label>
+<div id="rulePreview" class="assignment-preview" style="margin-top:12px"></div>
+<div style="display:flex;gap:8px;margin-top:12px"><button class="btn primary touchbtn" style="flex:1" onclick="saveAssignmentRule()">Save Rule &amp; Assign</button><button class="btn outline touchbtn" onclick="clearRuleEditor()">Clear</button></div></div>
+
+<div class="card panel"><div class="panelhead"><div><h4>Active Assignment Rules</h4><div class="subtle">Each rule materializes one assignment per matching employee.</div></div><span id="ruleCount" class="pill">0 rules</span></div><div id="rulesList"></div></div>
+</div>
+
+<div id="assignMineTab" style="display:none">
+<div class="card panel" style="margin-top:16px"><div class="panelhead"><div><h4>My Assigned Policies</h4><div class="subtle" id="mineWho"></div></div><div style="display:flex;gap:8px;align-items:center"><select id="mineFilter" class="select" onchange="renderMyAssignments()"><option value="open">Outstanding</option><option value="all">All</option><option value="acknowledged">Acknowledged</option></select><button class="btn outline touchbtn" onclick="acknowledgeAllVisible()">Acknowledge All Shown</button></div></div>
+<div id="mineSummary" class="subtle" style="margin-bottom:8px"></div>
+<div class="tablewrap"><table class="table"><thead><tr><th>Policy</th><th>Why assigned</th><th>Risk</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody id="myAssignmentRows"></tbody></table></div></div>
+</div>
+</section>
 
 <section id="toc" class="view">
 <div class="hero"><div><h3>Enterprise Policy Table of Contents</h3><p>Digital TOC organized from the uploaded tracker. Touch a section to review its policies, then touch a policy to see current policy information and all linked forms.</p></div></div>

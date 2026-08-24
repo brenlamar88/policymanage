@@ -43,7 +43,10 @@ read. `policy_form_link` is the many-to-many that lets one form serve many polic
 
 **Assignment** — `assignment_rule`, `assignment`
 Rules express the audience the way the business talks about it ("Risk 5 policies → all
-Nursing at all facilities"). A rule with null facility/department/role means "all". The
+Nursing at all facilities"). A rule targets one policy, one form, a whole TOC section, or a
+risk band — section and risk rules expand to their policies at materialization, which is
+what makes "every Risk 5 policy to everyone" a single rule instead of 59. A rule with null
+facility/department/role means "all". The
 rule engine materializes per-user `assignment` rows on publish, on rule change, and on any
 employee role/department change. Materializing matters: a nurse who transfers to Monroe
 must not silently lose the evidence trail of what she was assigned at Lake Charles.

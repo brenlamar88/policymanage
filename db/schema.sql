@@ -221,8 +221,13 @@ create table document_attachment (
 
 create table assignment_rule (
   id                      uuid primary key default gen_random_uuid(),
+  -- what is assigned: one policy, one form, a whole TOC section, or a risk band.
+  -- section and risk rules expand to policies at materialization time.
+  subject_type            text not null check (subject_type in ('policy','form','section','risk')),
   policy_id               uuid references policy(id) on delete cascade,
   form_id                 uuid references form(id) on delete cascade,
+  section_id              uuid references toc_section(id) on delete cascade,
+  risk_level              smallint check (risk_level between 1 and 5),
   facility_id             uuid references facility(id),   -- null = all facilities
   department_id           uuid references department(id), -- null = all departments
   role_id                 uuid references hospital_role(id), -- null = all roles
@@ -233,7 +238,12 @@ create table assignment_rule (
   is_active               boolean not null default true,
   created_by              uuid references app_user(id),
   created_at              timestamptz not null default now(),
-  check (num_nonnulls(policy_id, form_id) = 1)
+  constraint assignment_rule_subject_ck check (
+    (subject_type = 'policy'  and policy_id  is not null and form_id is null and section_id is null and risk_level is null) or
+    (subject_type = 'form'    and form_id    is not null and policy_id is null and section_id is null and risk_level is null) or
+    (subject_type = 'section' and section_id is not null and policy_id is null and form_id is null and risk_level is null) or
+    (subject_type = 'risk'    and risk_level is not null and policy_id is null and form_id is null and section_id is null)
+  )
 );
 
 create table assignment (
@@ -331,6 +341,7 @@ create index storage_object_scan_idx   on storage_object (scan_status) where sca
 create index assignment_user_open_idx  on assignment (user_id, status) where status = 'open';
 create index assignment_due_idx        on assignment (due_on) where status = 'open';
 create index assignment_pv_idx         on assignment (policy_version_id);
+create index rule_active_idx           on assignment_rule (subject_type) where is_active;
 
 create index ack_user_idx              on acknowledgement (user_id, acknowledged_at desc);
 create index ack_policy_version_idx    on acknowledgement (policy_version_id);

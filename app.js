@@ -125,6 +125,9 @@ function openPolicy(idx) {
 }
 function acknowledge(id) {
   byId('policyModal').classList.remove('show');
+  const mine = ASSIGNMENTS.find(a => a.userId === CURRENT_USER_ID && a.status === 'open'
+    && a.policyIdx !== null && POLICIES[a.policyIdx].policy === String(id));
+  if (mine) { acknowledgeAssignment(mine.id); return; }
   toast(`Policy ${id} acknowledged — timestamp recorded`);
 }
 
@@ -219,6 +222,13 @@ function init() {
   renderPolicyMulti();
   renderFormAssignSummary();
   renderForms();
+  fillMulti('ruleFacilities', FORM_FACILITIES);
+  fillMulti('ruleDepartments', FORM_DEPTS);
+  fillMulti('ruleRoles', FORM_ROLES);
+  byId('ruleSubjectSection').innerHTML = SECTIONS.map(x => `<option>${esc(x)}</option>`).join('');
+  renderRuleSubjectPolicies();
+  seedAssignments();
+  renderAssignments();
 }
 document.addEventListener('DOMContentLoaded', init);
 
@@ -868,4 +878,345 @@ function renderForms() {
 <div class="subtle" style="margin-top:7px">${esc(f.notify)}</div>
 <div style="display:flex;justify-content:flex-end;gap:7px;margin-top:10px"><button class="btn outline touchbtn" onclick="deleteControlledForm('${esc(f.id)}')">Retire</button><button class="btn outline touchbtn" onclick="editControlledForm('${esc(f.id)}')">Edit / Reassign</button><button class="btn primary touchbtn" onclick="openForm('${esc(f.id)}')">Open Form</button></div></div>`;
   }).join('') : '<div class="subtle" style="padding:30px;text-align:center">No forms match the current filters.</div>';
+}
+
+
+/* ===================================================== policy assignments
+   Two halves of one feature: admins write rules that target an audience by
+   facility / department / role, and each rule materializes one assignment
+   per matching employee. Staff see their own required reading and
+   acknowledge it. Mirrors assignment_rule / assignment / acknowledgement
+   in db/schema.sql.
+   ======================================================================== */
+
+const EMPLOYEES = [
+  {id:'FB-10001', first:'Jordan', last:'Rivera', email:'jordan.rivera@freedombehavioral.com', facility:'Enterprise / Corporate', departments:['Compliance / Risk','Quality / Performance Improvement'], roles:['Corporate Compliance Officer'], status:'Active'},
+  {id:'FB-10482', first:'Morgan', last:'Reed', email:'morgan.reed@freedombehavioral.com', facility:'Freedom Lake Charles', departments:['Nursing'], roles:['Registered Nurse'], status:'Active'},
+  {id:'FB-10614', first:'Taylor', last:'Brooks', email:'taylor.brooks@freedombehavioral.com', facility:'Freedom Monroe', departments:['Nursing'], roles:['Behavioral Health Technician / MHT'], status:'Active'},
+  {id:'FB-10133', first:'Casey', last:'Martin', email:'casey.martin@freedombehavioral.com', facility:'Freedom DeQuincy', departments:['Quality / Performance Improvement','Compliance / Risk'], roles:['Quality / Performance Improvement Director'], status:'Active'},
+  {id:'FB-10220', first:'Avery', last:'Nguyen', email:'avery.nguyen@freedombehavioral.com', facility:'Freedom Monroe', departments:['Nursing'], roles:['Director of Nursing'], status:'Active'},
+  {id:'FB-10318', first:'Riley', last:'Thompson', email:'riley.thompson@freedombehavioral.com', facility:'Freedom Leesville', departments:['Clinical / Therapy'], roles:['Therapist / LCSW / LPC'], status:'Active'},
+  {id:'FB-10405', first:'Jamie', last:'Fontenot', email:'jamie.fontenot@freedombehavioral.com', facility:'Freedom Lake Charles', departments:['Pharmacy / Medication Management'], roles:['Pharmacy Director / Pharmacist'], status:'Active'},
+  {id:'FB-10511', first:'Drew', last:'Landry', email:'drew.landry@freedombehavioral.com', facility:'Freedom Minden', departments:['Environment of Care','Life Safety'], roles:['Environment of Care / Safety Officer'], status:'Active'},
+  {id:'FB-10627', first:'Sam', last:'Guidry', email:'sam.guidry@freedombehavioral.com', facility:'Freedom Bunkie', departments:['Transportation'], roles:['Transportation / Driver'], status:'Active'},
+  {id:'FB-10704', first:'Quinn', last:'Adams', email:'quinn.adams@freedombehavioral.com', facility:'Freedom Greenville', departments:['HIM / Medical Records'], roles:['HIM / Medical Records Director'], status:'Active'},
+  {id:'FB-10812', first:'Alex', last:'Boudreaux', email:'alex.boudreaux@freedombehavioral.com', facility:'Freedom Plainview', departments:['Human Resources'], roles:['Human Resources Director'], status:'Active'},
+  {id:'FB-10905', first:'Peyton', last:'Hebert', email:'peyton.hebert@freedombehavioral.com', facility:'Freedom Ferriday', departments:['Central Intake / Admissions'], roles:['Intake Coordinator'], status:'Active'},
+  {id:'FB-11002', first:'Reese', last:'Doucet', email:'reese.doucet@freedombehavioral.com', facility:'Freedom Bastrop', departments:['Nursing'], roles:['Registered Nurse'], status:'Active'},
+  {id:'FB-11110', first:'Skyler', last:'Comeaux', email:'skyler.comeaux@freedombehavioral.com', facility:'Freedom Ville Platte', departments:['Dietary'], roles:['Dietary Director'], status:'Inactive'}
+];
+const CURRENT_USER_ID = 'FB-10001';
+const currentUser = () => EMPLOYEES.find(e => e.id === CURRENT_USER_ID);
+
+const RULES = [];
+const ASSIGNMENTS = [];   // {id, ruleId, userId, policyIdx, formId, dueOn, status, ackAt}
+let ruleSeq = 0, assignSeq = 0, editingRuleId = null;
+
+const overlaps = (a, b) => a.some(x => b.includes(x));
+const dayMs = 86400000;
+const addDays = n => new Date(Date.now() + n * dayMs);
+const fmtDate = d => d.toLocaleDateString(undefined, {month: 'short', day: '2-digit'});
+
+/* Which employees a rule targets. An empty list means "all". */
+function matchEmployees(rule) {
+  return EMPLOYEES.filter(e => e.status === 'Active'
+    && (!rule.facilities.length || rule.facilities.includes(e.facility))
+    && (!rule.departments.length || overlaps(rule.departments, e.departments))
+    && (!rule.roles.length || overlaps(rule.roles, e.roles)));
+}
+
+/* A rule can name one policy, a whole TOC section, or a risk band. */
+function rulePolicyIndexes(rule) {
+  if (rule.subject === 'policy') return rule.policyIdx === null ? [] : [rule.policyIdx];
+  if (rule.subject === 'section') return POLICIES.map((p, i) => ({p, i})).filter(x => x.p.section === rule.section).map(x => x.i);
+  if (rule.subject === 'risk') return POLICIES.map((p, i) => ({p, i})).filter(x => x.p.risk === Number(rule.risk)).map(x => x.i);
+  return [];
+}
+
+function ruleSubjectLabel(rule) {
+  if (rule.subject === 'policy') {
+    const p = POLICIES[rule.policyIdx];
+    return p ? `${p.policy} · ${p.title}` : 'Policy';
+  }
+  if (rule.subject === 'section') return `All policies in ${rule.section}`;
+  if (rule.subject === 'risk') return `All Risk ${rule.risk} policies`;
+  const f = CONTROLLED_FORMS.find(x => x.id === rule.formId);
+  return f ? `Form ${f.id} · ${f.name}` : 'Controlled form';
+}
+
+function materialize(rule) {
+  if (!rule.active) return 0;
+  const people = matchEmployees(rule);
+  const policies = rulePolicyIndexes(rule);
+  let created = 0;
+  people.forEach(e => {
+    if (rule.subject === 'form') {
+      if (!ASSIGNMENTS.some(a => a.userId === e.id && a.formId === rule.formId)) {
+        ASSIGNMENTS.push({id: ++assignSeq, ruleId: rule.id, userId: e.id, policyIdx: null, formId: rule.formId, dueOn: addDays(rule.dueDays), status: 'open', ackAt: null});
+        created++;
+      }
+    } else {
+      policies.forEach(idx => {
+        if (!ASSIGNMENTS.some(a => a.userId === e.id && a.policyIdx === idx)) {
+          ASSIGNMENTS.push({id: ++assignSeq, ruleId: rule.id, userId: e.id, policyIdx: idx, formId: null, dueOn: addDays(rule.dueDays), status: 'open', ackAt: null});
+          created++;
+        }
+      });
+    }
+  });
+  return created;
+}
+
+/* Seed rules so the page opens with a realistic picture, including a few
+   assignments already acknowledged and one deliberately past due. */
+function seedAssignments() {
+  [
+    {subject: 'risk', risk: 5, facilities: [], departments: [], roles: [], dueDays: 3, requiresAck: true, delivery: 'Portal + Email + Acknowledgement Required', name: 'Risk 5 — all staff'},
+    {subject: 'section', section: 'MEDICATION MANAGEMENT', facilities: [], departments: ['Nursing','Pharmacy / Medication Management'], roles: [], dueDays: 7, requiresAck: true, delivery: 'Portal + Email + Acknowledgement Required', name: 'Medication Management — Nursing & Pharmacy'},
+    {subject: 'section', section: 'PATIENT RIGHTS', facilities: [], departments: ['Compliance / Risk'], roles: [], dueDays: 5, requiresAck: true, delivery: 'Portal + Email', name: 'Patient Rights — Compliance'}
+  ].forEach(r => {
+    const rule = {id: ++ruleSeq, active: true, policyIdx: null, formId: null, section: null, risk: null, ...r};
+    RULES.push(rule);
+    materialize(rule);
+  });
+  // a plausible starting state rather than a wall of untouched rows
+  ASSIGNMENTS.forEach((a, i) => {
+    if (i % 3 === 0) { a.status = 'acknowledged'; a.ackAt = new Date(Date.now() - (i % 9) * dayMs); }
+    else if (i % 7 === 0) a.dueOn = new Date(Date.now() - 2 * dayMs);
+  });
+}
+
+const isOverdue = a => a.status === 'open' && a.dueOn < new Date();
+
+function renderAssignments() {
+  const active = RULES.filter(r => r.active);
+  const covered = new Set(ASSIGNMENTS.map(a => a.userId));
+  const acked = ASSIGNMENTS.filter(a => a.status === 'acknowledged').length;
+  byId('kpiRules').textContent = active.length;
+  byId('kpiCovered').textContent = covered.size;
+  byId('kpiRoster').textContent = EMPLOYEES.filter(e => e.status === 'Active').length;
+  byId('kpiAssignments').textContent = ASSIGNMENTS.length;
+  byId('kpiAckRate').textContent = ASSIGNMENTS.length ? Math.round(acked / ASSIGNMENTS.length * 100) + '%' : '0%';
+  byId('kpiAckCount').textContent = acked;
+  byId('kpiOverdue').textContent = ASSIGNMENTS.filter(isOverdue).length;
+  byId('assignNavCount').textContent = ASSIGNMENTS.filter(a => a.userId === CURRENT_USER_ID && a.status === 'open').length;
+  renderRules();
+  renderMyAssignments();
+  renderRulePreview();
+}
+
+function showAssignTab(tab) {
+  showView('assign', 'Policy Assignment Center');
+  const rules = tab === 'rules';
+  byId('assignRulesTab').style.display = rules ? '' : 'none';
+  byId('assignMineTab').style.display = rules ? 'none' : '';
+  byId('tabRules').classList.toggle('active', rules);
+  byId('tabMine').classList.toggle('active', !rules);
+}
+
+function onRuleSubjectChange() {
+  const v = byId('ruleSubject').value;
+  byId('ruleSubjectPolicyWrap').style.display = v === 'policy' ? '' : 'none';
+  byId('ruleSubjectSectionWrap').style.display = v === 'section' ? '' : 'none';
+  byId('ruleSubjectRiskWrap').style.display = v === 'risk' ? '' : 'none';
+  byId('ruleSubjectFormWrap').style.display = v === 'form' ? '' : 'none';
+  if (v === 'form') byId('ruleSubjectForm').innerHTML = CONTROLLED_FORMS.map(f => `<option value="${esc(f.id)}">${esc(f.id)} · ${esc(f.name)}</option>`).join('');
+  renderRulePreview();
+}
+
+function renderRuleSubjectPolicies() {
+  const el = byId('ruleSubjectPolicy');
+  if (!el) return;
+  const q = (byId('ruleSubjectSearch')?.value || '').toLowerCase();
+  const chosen = el.value;
+  el.innerHTML = POLICIES.map((p, i) => ({p, i}))
+    .filter(({p}) => !q || (p.policy + ' ' + p.title + ' ' + p.section).toLowerCase().includes(q))
+    .slice(0, 250)
+    .map(({p, i}) => `<option value="${i}" ${String(i) === chosen ? 'selected' : ''}>${esc(p.policy)} · ${esc(p.title)}</option>`).join('');
+}
+
+function readRuleForm() {
+  const subject = byId('ruleSubject').value;
+  return {
+    subject,
+    policyIdx: subject === 'policy' && byId('ruleSubjectPolicy').value !== '' ? Number(byId('ruleSubjectPolicy').value) : null,
+    section: subject === 'section' ? byId('ruleSubjectSection').value : null,
+    risk: subject === 'risk' ? byId('ruleSubjectRisk').value : null,
+    formId: subject === 'form' ? byId('ruleSubjectForm').value : null,
+    facilities: selectedValues('ruleFacilities'),
+    departments: selectedValues('ruleDepartments'),
+    roles: selectedValues('ruleRoles'),
+    dueDays: Math.max(1, Number(byId('ruleDueDays').value || 3)),
+    requiresAck: byId('ruleRequiresAck').checked,
+    delivery: byId('ruleDelivery').value,
+    active: true
+  };
+}
+
+function renderRulePreview() {
+  const host = byId('rulePreview');
+  if (!host) return;
+  const draft = readRuleForm();
+  const people = matchEmployees(draft);
+  const policies = draft.subject === 'form' ? [] : rulePolicyIndexes(draft);
+  const count = draft.subject === 'form' ? people.length : people.length * policies.length;
+  host.innerHTML = `<div class="grouplabel">Rule preview</div><div class="linkmatrix"><div><b>${draft.subject === 'form' ? 1 : policies.length}</b><span class="subtle">${draft.subject === 'form' ? 'Form' : 'Policies'}</span></div><div><b>${people.length}</b><span class="subtle">Employees matched</span></div><div><b>${count}</b><span class="subtle">Assignments</span></div></div>
+<div class="subtle" style="margin-top:7px">${esc(ruleSubjectLabel(draft))} · due in ${draft.dueDays} day${draft.dueDays === 1 ? '' : 's'}${draft.requiresAck ? ' · acknowledgement required' : ' · read only, no acknowledgement'}</div>
+<div class="assign-summary">${people.slice(0, 5).map(e => `<span class="assign-chip">${esc(e.first)} ${esc(e.last)} · ${esc(e.roles[0] || '')}</span>`).join('')}${people.length > 5 ? `<span class="assign-chip">+${people.length - 5} more</span>` : ''}${!people.length ? '<span class="subtle">No active employee matches this audience</span>' : ''}</div>`;
+}
+
+function saveAssignmentRule() {
+  const draft = readRuleForm();
+  if (draft.subject === 'policy' && draft.policyIdx === null) { toast('Select a policy to assign'); return; }
+  if (draft.subject === 'form' && !draft.formId) { toast('Select a controlled form to assign'); return; }
+  if (!matchEmployees(draft).length) { toast('That audience matches no active employees'); return; }
+  const existing = RULES.find(r => r.id === editingRuleId);
+  let rule;
+  if (existing) { Object.assign(existing, draft); rule = existing; }
+  else { rule = {id: ++ruleSeq, ...draft}; RULES.push(rule); }
+  const created = materialize(rule);
+  clearRuleEditor();
+  renderAssignments();
+  toast(`Rule saved — ${created} new assignment${created === 1 ? '' : 's'} created`);
+}
+
+function clearRuleEditor() {
+  editingRuleId = null;
+  byId('ruleEditorTitle').textContent = 'Create Assignment Rule';
+  byId('ruleSubject').value = 'policy';
+  byId('ruleSubjectSearch').value = '';
+  byId('ruleDueDays').value = '3';
+  byId('ruleRequiresAck').checked = true;
+  ['ruleFacilities','ruleDepartments','ruleRoles'].forEach(id => selectAllMulti(id, false));
+  onRuleSubjectChange();
+  renderRuleSubjectPolicies();
+}
+
+function editRule(id) {
+  const r = RULES.find(x => x.id === id);
+  if (!r) return;
+  editingRuleId = id;
+  byId('ruleEditorTitle').textContent = `Revising rule #${id}`;
+  byId('ruleSubject').value = r.subject;
+  onRuleSubjectChange();
+  if (r.subject === 'policy') { renderRuleSubjectPolicies(); byId('ruleSubjectPolicy').value = String(r.policyIdx); }
+  if (r.subject === 'section') byId('ruleSubjectSection').value = r.section;
+  if (r.subject === 'risk') byId('ruleSubjectRisk').value = String(r.risk);
+  if (r.subject === 'form') byId('ruleSubjectForm').value = r.formId;
+  setMultiSelection('ruleFacilities', r.facilities);
+  setMultiSelection('ruleDepartments', r.departments);
+  setMultiSelection('ruleRoles', r.roles);
+  byId('ruleDueDays').value = String(r.dueDays);
+  byId('ruleRequiresAck').checked = r.requiresAck;
+  byId('ruleDelivery').value = r.delivery;
+  renderRulePreview();
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+/* Deactivating withdraws only what nobody has acted on — acknowledgement
+   evidence is never deleted. */
+function toggleRule(id) {
+  const r = RULES.find(x => x.id === id);
+  if (!r) return;
+  r.active = !r.active;
+  if (!r.active) {
+    for (let i = ASSIGNMENTS.length - 1; i >= 0; i--) {
+      if (ASSIGNMENTS[i].ruleId === id && ASSIGNMENTS[i].status === 'open') ASSIGNMENTS.splice(i, 1);
+    }
+    toast(`Rule #${id} deactivated — outstanding assignments withdrawn, acknowledgements retained`);
+  } else {
+    const created = materialize(r);
+    toast(`Rule #${id} reactivated — ${created} assignment${created === 1 ? '' : 's'} restored`);
+  }
+  renderAssignments();
+}
+
+function deleteRule(id) {
+  const r = RULES.find(x => x.id === id);
+  if (!r) return;
+  if (!confirm(`Delete rule #${id}? Outstanding assignments are withdrawn; acknowledgements already recorded stay in the audit trail.`)) return;
+  for (let i = ASSIGNMENTS.length - 1; i >= 0; i--) {
+    if (ASSIGNMENTS[i].ruleId === id && ASSIGNMENTS[i].status === 'open') ASSIGNMENTS.splice(i, 1);
+  }
+  RULES.splice(RULES.indexOf(r), 1);
+  if (editingRuleId === id) clearRuleEditor();
+  renderAssignments();
+  toast(`Rule #${id} deleted`);
+}
+
+function scopeChips(rule) {
+  const part = (label, values) => values.length
+    ? values.slice(0, 3).map(v => `<span class="scopechip">${esc(v)}</span>`).join('') + (values.length > 3 ? `<span class="scopechip">+${values.length - 3}</span>` : '')
+    : `<span class="scopechip any">All ${label}</span>`;
+  return part('facilities', rule.facilities) + part('departments', rule.departments) + part('roles', rule.roles);
+}
+
+function renderRules() {
+  const host = byId('rulesList');
+  if (!host) return;
+  byId('ruleCount').textContent = `${RULES.length} rule${RULES.length === 1 ? '' : 's'}`;
+  host.innerHTML = RULES.length ? RULES.map(r => {
+    const mine = ASSIGNMENTS.filter(a => a.ruleId === r.id);
+    const acked = mine.filter(a => a.status === 'acknowledged').length;
+    const overdue = mine.filter(isOverdue).length;
+    const pct = mine.length ? Math.round(acked / mine.length * 100) : 0;
+    return `<div class="rulecard ${r.active ? '' : 'inactive'}"><div class="formcard-top"><div><h5>${esc(ruleSubjectLabel(r))}</h5><div class="subtle">${esc(r.delivery)} · due in ${r.dueDays} days${r.requiresAck ? '' : ' · no acknowledgement required'}</div></div><span class="status ${r.active ? 'good' : 'pending'}">${r.active ? 'Active' : 'Inactive'}</span></div>
+<div class="rulescope">${scopeChips(r)}</div>
+<div class="linkmatrix"><div><b>${matchEmployees(r).length}</b><span class="subtle">Employees</span></div><div><b>${mine.length}</b><span class="subtle">Assignments</span></div><div><b>${overdue}</b><span class="subtle">Past due</span></div></div>
+<div class="metricbar" style="margin-top:9px"><label>Acknowledged</label><div class="progress"><span style="width:${pct}%"></span></div><small>${pct}%</small></div>
+<div style="display:flex;justify-content:flex-end;gap:7px;margin-top:9px"><button class="btn outline touchbtn" onclick="deleteRule(${r.id})">Delete</button><button class="btn outline touchbtn" onclick="toggleRule(${r.id})">${r.active ? 'Deactivate' : 'Reactivate'}</button><button class="btn primary touchbtn" onclick="editRule(${r.id})">Edit Rule</button></div></div>`;
+  }).join('') : '<div class="subtle" style="padding:30px;text-align:center">No assignment rules yet.</div>';
+}
+
+function whyAssigned(a) {
+  const r = RULES.find(x => x.id === a.ruleId);
+  if (!r) return 'Manual assignment';
+  const bits = [];
+  if (r.roles.length) bits.push(r.roles.join(', '));
+  if (r.departments.length) bits.push(r.departments.join(', '));
+  if (r.facilities.length) bits.push(r.facilities.join(', '));
+  return bits.length ? bits.join(' · ') : 'All staff';
+}
+
+function renderMyAssignments() {
+  const host = byId('myAssignmentRows');
+  if (!host) return;
+  const me = currentUser();
+  byId('mineWho').textContent = `${me.first} ${me.last} · ${me.roles.join(', ')} · ${me.facility}`;
+  const filter = byId('mineFilter').value;
+  const all = ASSIGNMENTS.filter(a => a.userId === CURRENT_USER_ID);
+  const rows = all.filter(a => filter === 'all' || (filter === 'open' ? a.status === 'open' : a.status === 'acknowledged'));
+  const open = all.filter(a => a.status === 'open').length;
+  const overdue = all.filter(isOverdue).length;
+  byId('mineSummary').textContent = `${all.length} assigned · ${open} outstanding · ${overdue} past due · ${all.length - open} acknowledged`;
+  host.innerHTML = rows.length ? rows.slice(0, 200).map(a => {
+    const p = a.policyIdx !== null ? POLICIES[a.policyIdx] : null;
+    const f = a.formId ? CONTROLLED_FORMS.find(x => x.id === a.formId) : null;
+    const label = p ? `${esc(p.policy)} · ${esc(p.title)}` : `${esc(f?.id || 'Form')} · ${esc(f?.name || '')}`;
+    const status = a.status === 'acknowledged'
+      ? `<span class="status good">Acknowledged ${esc(fmtDate(a.ackAt))}</span>`
+      : isOverdue(a) ? '<span class="status overdue">Past due</span>' : '<span class="status pending">Needs acknowledgement</span>';
+    return `<tr><td><div class="policytitle" onclick="${p ? `openPolicy(${a.policyIdx})` : `openForm('${esc(a.formId)}')`}">${label}</div><div class="subtle">${p ? esc(p.section) : 'Controlled form'}</div></td>
+<td class="assignwhy">${esc(whyAssigned(a))}</td><td>${p ? riskBadge(p.risk) : riskBadge(f?.risk || 3)}</td><td>${esc(fmtDate(a.dueOn))}</td><td>${status}</td>
+<td>${a.status === 'acknowledged' ? `<button class="btn outline touchbtn" onclick="${p ? `openPolicy(${a.policyIdx})` : `openForm('${esc(a.formId)}')`}">View</button>` : `<button class="btn primary touchbtn" onclick="acknowledgeAssignment(${a.id})">Acknowledge</button>`}</td></tr>`;
+  }).join('') : '<tr><td colspan="6" class="subtle" style="text-align:center;padding:24px">Nothing here — try a different filter.</td></tr>';
+}
+
+function acknowledgeAssignment(id) {
+  const a = ASSIGNMENTS.find(x => x.id === id);
+  if (!a || a.status === 'acknowledged') return;
+  a.status = 'acknowledged';
+  a.ackAt = new Date();
+  renderAssignments();
+  const p = a.policyIdx !== null ? POLICIES[a.policyIdx] : null;
+  toast(`${p ? p.policy : a.formId} acknowledged — timestamp and version recorded`);
+}
+
+function acknowledgeAllVisible() {
+  const open = ASSIGNMENTS.filter(a => a.userId === CURRENT_USER_ID && a.status === 'open');
+  if (!open.length) { toast('Nothing outstanding to acknowledge'); return; }
+  if (!confirm(`Acknowledge ${open.length} assignment${open.length === 1 ? '' : 's'}? Each records your name, the version, and a timestamp.`)) return;
+  open.forEach(a => { a.status = 'acknowledged'; a.ackAt = new Date(); });
+  renderAssignments();
+  toast(`${open.length} acknowledgement${open.length === 1 ? '' : 's'} recorded`);
 }

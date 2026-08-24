@@ -4,14 +4,15 @@ Front-end prototype of the Freedom Behavioral enterprise policy governance porta
 
 ## Scope
 
-Four primary menu options are visible and built out:
+Five primary menu options are visible and built out:
 
 1. **Dashboard** — enterprise KPIs, risk 1–5 distribution (touch a risk level to filter the library), and recent policy activity.
 2. **Policy & Form Library** — searchable/filterable table of the 379 controlled policy records, with regulatory driver, associated forms, control status, and a controlled-policy record modal. Includes **bulk upload**: drag a folder or select many files, per-file validation and fingerprint dedupe, automatic matching to a policy by filename, and a staged ingest with per-file progress.
 3. **Forms Management** — create or revise a controlled form, link it to many policies, and assign it to hospital roles, departments, and facilities. Forms arriving through Bulk Upload land here as drafts waiting to be catalogued.
 4. **Table of Contents** — the 17 enterprise TOC sections as clickable cards plus a Quick TOC in the sidebar; selecting a section opens the full list of its policies (with an in-section filter), and selecting a policy shows its current information and every linked form.
+5. **Assign Policies** — the admin side writes assignment rules (a policy, a TOC section, a risk band, or a form → facilities / departments / roles, with a due window and delivery rule) and each rule materializes one assignment per matching employee; the staff side is *My Assigned Policies*, where required reading is acknowledged with a timestamp.
 
-Other modules from the original concept (Assigned Policies, Notification Center, Review Analytics, AI Regulatory Watch, Admin, Roles & Groups, Audit Trail) are intentionally not part of this build.
+Other modules from the original concept ( Notification Center, Review Analytics, AI Regulatory Watch, Admin, Roles & Groups, Audit Trail) are intentionally not part of this build.
 
 ## Files
 

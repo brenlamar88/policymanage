@@ -7,11 +7,17 @@ const SECTIONS = ["ADMISSION ASSESSMENT MANAGEMENT", "CASE MANAGEMENT", "DIAGNOS
 
 /* Controlled forms linked to policy records. Forms Management is not one of the
    three menus being built out, so these are read-only reference records here. */
-const CONTROLLED_FORMS = [
+let CONTROLLED_FORMS = [
 {id:"FRM-15008-A",name:"Patient Rights Acknowledgement",version:"v2.1",risk:5,file:"Patient_Rights_Acknowledgement.pdf",policies:["15008","15009"],roles:["Registered Nurse","Behavioral Health Technician / MHT","Hospital Administrator"],departments:["Nursing","Compliance / Risk"],facilities:["Enterprise / Corporate"],owner:"Compliance / Risk",notify:"Portal + Email + Acknowledgement Required"},
 {id:"FRM-11012-B",name:"Medication Variance Review",version:"v3.0",risk:5,file:"Medication_Variance_Form.pdf",policies:["11012"],roles:["Registered Nurse","Director of Nursing","Pharmacy Director / Pharmacist"],departments:["Nursing","Pharmacy / Medication Management","Quality / Performance Improvement"],facilities:["Enterprise / Corporate"],owner:"Nursing",notify:"Portal + Email + Acknowledgement Required"},
 {id:"FRM-6044",name:"Patient Transportation Log",version:"v1.4",risk:2,file:"Transportation_Log.xlsx",policies:["6044","6070"],roles:["Transportation / Driver","Environment of Care / Safety Officer"],departments:["Transportation"],facilities:["Enterprise / Corporate"],owner:"Environment of Care",notify:"Portal + Email"}
 ];
+
+const FORM_ROLES = ["CEO / President","Chief Operating Officer","Chief Nursing Officer","Corporate Compliance Officer","Corporate Quality Director","Regional Director","Hospital Administrator","Director of Nursing","Assistant Director of Nursing","Medical Director","Psychiatrist","PMHNP / Nurse Practitioner","Registered Nurse","Licensed Practical Nurse","Behavioral Health Technician / MHT","Therapist / LCSW / LPC","Social Services Director","Case Manager / Discharge Planner","Utilization Review Director","Utilization Review Coordinator","Central Intake Director","Intake Coordinator","Quality / Performance Improvement Director","Risk Manager","Infection Preventionist","HIM / Medical Records Director","HIM Technician","Human Resources Director","HR Generalist","Business Development Director","Service Development Representative","IOP Coordinator","Pharmacy Director / Pharmacist","Dietary Director","Dietary Staff","Plant Operations Director","Maintenance Technician","Environment of Care / Safety Officer","Security","Transportation / Driver","Billing / Revenue Cycle","Finance / Accounting","IT / Systems Administrator","Executive Assistant / Administrative Staff"];
+
+const FORM_DEPTS = ["Executive Leadership","Administration","Nursing","Medical Staff","Clinical / Therapy","Social Services","Case Management","Utilization Review","Central Intake / Admissions","Quality / Performance Improvement","Compliance / Risk","Human Resources","HIM / Medical Records","Pharmacy / Medication Management","Infection Prevention","Environment of Care","Life Safety","Emergency Management","Dietary","Business Development / Service Development","IOP","Transportation","Finance / Accounting","Revenue Cycle / Billing","IT / Security","Plant Operations / Maintenance"];
+
+const FORM_FACILITIES = ["Enterprise / Corporate","Freedom Bastrop","Freedom Bunkie","Freedom DeQuincy","Freedom Ferriday","Freedom Lake Charles","Freedom Leesville","Freedom Minden","Freedom Monroe","Freedom Ville Platte","Freedom Magnolia","Freedom Greenville","Freedom Plainview"];
 
 /* ---------- helpers ---------- */
 const byId = id => document.getElementById(id);
@@ -186,7 +192,7 @@ function selectTocPolicy(idx) {
   const uploadedIds = new Set(uploaded.map(f => String(f.id)));
   const trackerOnly = (p.forms || []).map(String).filter(id => !uploadedIds.has(id));
   const cards = [];
-  uploaded.forEach(f => cards.push(`<div class="form-info-card"><div class="form-source">Controlled Form</div><h6>${esc(f.id)} · ${esc(f.name)}</h6><div class="subtle">${esc(f.version)} · ${esc(f.file)} · Owner: ${esc(f.owner)}</div><div class="form-info-meta"><span class="pill">Risk ${f.risk}</span><span class="pill">${f.roles.length} roles</span><span class="pill">${f.departments.length} departments</span><span class="pill">${f.facilities.length} facilities</span></div><div class="subtle"><b>Roles:</b> ${f.roles.length ? f.roles.map(esc).join(', ') : 'None assigned'}</div><div class="subtle" style="margin-top:4px"><b>Departments:</b> ${f.departments.length ? f.departments.map(esc).join(', ') : 'None assigned'}</div><div class="subtle" style="margin-top:4px"><b>Notification:</b> ${esc(f.notify)}</div><div style="display:flex;gap:7px;justify-content:flex-end;margin-top:9px"><button class="btn primary touchbtn" onclick="openForm('${esc(f.id)}')">Open Form</button></div></div>`));
+  uploaded.forEach(f => cards.push(`<div class="form-info-card"><div class="form-source">Controlled Form</div><h6>${esc(f.id)} · ${esc(f.name)}</h6><div class="subtle">${esc(f.version)} · ${esc(f.file)} · Owner: ${esc(f.owner)}</div><div class="form-info-meta"><span class="pill">Risk ${f.risk}</span><span class="pill">${f.roles.length} roles</span><span class="pill">${f.departments.length} departments</span><span class="pill">${f.facilities.length} facilities</span></div><div class="subtle"><b>Roles:</b> ${f.roles.length ? f.roles.map(esc).join(', ') : 'None assigned'}</div><div class="subtle" style="margin-top:4px"><b>Departments:</b> ${f.departments.length ? f.departments.map(esc).join(', ') : 'None assigned'}</div><div class="subtle" style="margin-top:4px"><b>Notification:</b> ${esc(f.notify)}</div><div style="display:flex;gap:7px;justify-content:flex-end;margin-top:9px"><button class="btn outline touchbtn" onclick="manageForm('${esc(f.id)}')">Manage Form</button><button class="btn primary touchbtn" onclick="openForm('${esc(f.id)}')">Open Form</button></div></div>`));
   trackerOnly.forEach(id => cards.push(`<div class="form-info-card"><div class="form-source">Tracker-Linked Form</div><h6>Form ${esc(id)}</h6><div class="subtle">Referenced by the enterprise tracker. Version, owner, roles, departments, facilities and revision history are managed once the form is brought under control.</div></div>`));
   byId('tocPolicyInfo').innerHTML = `<div style="display:flex;justify-content:space-between;gap:12px;align-items:start"><div><div class="subtle">${esc(p.section)}</div><h3 style="margin:4px 0 8px">${esc(p.policy)} · ${esc(p.title)}</h3></div>${riskBadge(p.risk)}</div>
 <div class="risk-legend"><span class="r${p.risk}">Risk ${p.risk}: ${esc(p.basis || 'Enterprise risk classification')}</span><span style="background:#175c92">${esc(p.regulatory || 'Corporate')}</span></div>
@@ -206,6 +212,13 @@ function init() {
   renderTOC();
   renderPolicyTable();
   renderUploadRules();
+  fillMulti('formOwnerDept', FORM_DEPTS);
+  fillMulti('formRoles', FORM_ROLES);
+  fillMulti('formDepartments', FORM_DEPTS);
+  fillMulti('formFacilities', FORM_FACILITIES);
+  renderPolicyMulti();
+  renderFormAssignSummary();
+  renderForms();
 }
 document.addEventListener('DOMContentLoaded', init);
 
@@ -257,6 +270,13 @@ function renderUploadRules() {
 function openUpload() {
   byId('uploadModal').classList.add('show');
   renderUploadRules();
+  fillMulti('formOwnerDept', FORM_DEPTS);
+  fillMulti('formRoles', FORM_ROLES);
+  fillMulti('formDepartments', FORM_DEPTS);
+  fillMulti('formFacilities', FORM_FACILITIES);
+  renderPolicyMulti();
+  renderFormAssignSummary();
+  renderForms();
 }
 function closeUpload() {
   if (uploading) { toast('Upload in progress — let the batch finish'); return; }
@@ -450,6 +470,7 @@ async function processRow(r) {
   r.status = 'done';
   r.stage = 'Ready for review';
   INGESTED.add(r.fp);
+  if (r.kind === 'form') addDraftForm(r);
   if (r.kind !== 'form' && r.targetIdx !== null) {
     const list = PENDING_VERSIONS.get(r.targetIdx) || [];
     list.push({name: r.name, size: r.file.size, at: new Date().toLocaleString(), file: r.file, ext: r.ext});
@@ -475,6 +496,7 @@ async function startUpload() {
   renderQueue();
   renderPolicyTable();
   renderTOC();
+  renderForms();
   if (currentSection) renderTocPolicyList();
   toast(`${done} document${done === 1 ? '' : 's'} ingested — pending review`);
 }
@@ -574,7 +596,7 @@ function openForm(formId) {
   openDocViewer({
     title: `${f.id} · ${f.name}`,
     subtitle: `${f.version} · ${f.file} · Owner: ${f.owner}`,
-    file: null,
+    file: f.blob || null,
     linkedPolicies: linked,
     meta: [
       ['Status', '<span class="status good">Current controlled version</span>'],
@@ -624,4 +646,226 @@ function openPendingUpload(policyIdx, i) {
     ],
     placeholder: ''
   });
+}
+
+
+/* ========================================================= forms management
+   Controlled forms: create or revise a form, link it to many policies, and
+   assign it to roles, departments, and facilities. Forms arriving through
+   Bulk Upload land here as drafts waiting to be catalogued.
+   ========================================================================= */
+
+const DRAFT_FORMS = [];        // uploaded files not yet catalogued as controlled forms
+let editingFormId = null;
+
+const selectedValues = id => [...(byId(id)?.selectedOptions || [])].map(o => o.value);
+function fillMulti(id, values) {
+  const el = byId(id);
+  if (el) el.innerHTML = values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+}
+function selectAllMulti(id, on) {
+  const el = byId(id);
+  if (el) [...el.options].forEach(o => o.selected = on);
+}
+function setMultiSelection(id, values) {
+  const el = byId(id);
+  if (el) [...el.options].forEach(o => o.selected = (values || []).includes(o.value));
+}
+
+/* The policy picker is searchable because 379 options in one list is unusable. */
+function renderPolicyMulti() {
+  const el = byId('formPolicies');
+  if (!el) return;
+  const chosen = new Set([...(el.selectedOptions || [])].map(o => o.value));
+  const q = (byId('policyLinkSearch')?.value || '').toLowerCase();
+  const matches = POLICIES
+    .filter(p => !q || (p.policy + ' ' + p.title + ' ' + p.section).toLowerCase().includes(q))
+    .slice(0, 250);
+  el.innerHTML = matches.map(p =>
+    `<option value="${esc(p.policy)}" ${chosen.has(p.policy) ? 'selected' : ''}>${esc(p.policy)} · ${esc(p.title)}</option>`).join('');
+}
+
+function chipList(values, empty = 'None selected') {
+  return values.length
+    ? values.map(v => `<span class="assign-chip">${esc(v)}</span>`).join('')
+    : `<span class="subtle">${empty}</span>`;
+}
+function renderFormAssignSummary() {
+  const host = byId('formAssignSummary');
+  if (!host) return;
+  const pol = selectedValues('formPolicies'), roles = selectedValues('formRoles');
+  const depts = selectedValues('formDepartments'), fac = selectedValues('formFacilities');
+  host.innerHTML = `<div class="linkmatrix"><div><b>${pol.length}</b><span class="subtle">Policies</span></div><div><b>${roles.length}</b><span class="subtle">Roles</span></div><div><b>${depts.length}</b><span class="subtle">Departments</span></div></div>
+<div class="assign-summary">${chipList(fac, 'No facility selected — defaults to Enterprise')}</div>`;
+}
+
+let pendingFormFile = null;
+function handleFormFile(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const verdict = classify(file);
+  if (verdict.status === 'rejected') { toast(verdict.note); input.value = ''; return; }
+  pendingFormFile = file;
+  byId('formFileLabel').textContent = file.name;
+  if (!byId('newFormName').value) byId('newFormName').value = file.name.replace(/\.[^.]+$/, '');
+  toast(verdict.status === 'quarantine' ? `${file.name} — ${verdict.note}` : 'Form selected — configure assignments');
+}
+
+function saveControlledForm() {
+  const id = (byId('newFormId').value || '').trim();
+  const name = (byId('newFormName').value || '').trim();
+  const policies = selectedValues('formPolicies');
+  if (!id || !name || !policies.length) { toast('Form ID, name, and at least one linked policy are required'); return; }
+  const existing = CONTROLLED_FORMS.find(f => f.id.toLowerCase() === id.toLowerCase() && f.id !== editingFormId);
+  const target = CONTROLLED_FORMS.find(f => f.id === editingFormId) || existing;
+  const rec = {
+    id, name,
+    version: byId('newFormVersion').value || 'v1.0',
+    risk: Number(byId('formRisk').value || 3),
+    file: pendingFormFile ? pendingFormFile.name : (target?.file || 'Controlled form file'),
+    blob: pendingFormFile || target?.blob || null,
+    policies,
+    roles: selectedValues('formRoles'),
+    departments: selectedValues('formDepartments'),
+    facilities: selectedValues('formFacilities').length ? selectedValues('formFacilities') : ['Enterprise / Corporate'],
+    owner: byId('formOwnerDept').value,
+    notify: byId('formNotify').value
+  };
+  if (target) {
+    Object.assign(target, rec);
+    toast(`${id} revised — ${rec.roles.length} roles and ${rec.departments.length} departments notified`);
+  } else {
+    CONTROLLED_FORMS.unshift(rec);
+    toast(`${id} created and assigned to ${rec.policies.length} polic${rec.policies.length === 1 ? 'y' : 'ies'}`);
+  }
+  clearFormEditor();
+  renderForms();
+  renderTOC();
+  renderPolicyTable();
+  if (currentSection) renderTocPolicyList();
+}
+
+function clearFormEditor() {
+  editingFormId = null;
+  pendingFormFile = null;
+  ['newFormId','newFormName','policyLinkSearch'].forEach(id => { if (byId(id)) byId(id).value = ''; });
+  byId('newFormVersion').value = 'v1.0';
+  byId('formRisk').value = '3';
+  byId('formFileLabel').textContent = 'Touch to select or drop a form';
+  byId('formEditorTitle').textContent = 'Create / Revise Controlled Form';
+  ['formPolicies','formRoles','formDepartments','formFacilities'].forEach(id => selectAllMulti(id, false));
+  renderPolicyMulti();
+  renderFormAssignSummary();
+}
+
+function editControlledForm(id) {
+  const f = CONTROLLED_FORMS.find(x => x.id === id);
+  if (!f) return;
+  editingFormId = f.id;
+  pendingFormFile = f.blob || null;
+  byId('formEditorTitle').textContent = `Revising ${f.id}`;
+  byId('newFormId').value = f.id;
+  byId('newFormName').value = f.name;
+  byId('newFormVersion').value = f.version;
+  byId('formRisk').value = String(f.risk);
+  byId('formOwnerDept').value = f.owner;
+  byId('formNotify').value = f.notify;
+  byId('formFileLabel').textContent = f.file;
+  byId('policyLinkSearch').value = '';
+  renderPolicyMulti();
+  // make sure linked policies are present in the (truncated) option list before selecting
+  const el = byId('formPolicies');
+  f.policies.forEach(num => {
+    if (![...el.options].some(o => o.value === num)) {
+      const p = POLICIES.find(x => x.policy === num);
+      if (p) el.insertAdjacentHTML('afterbegin', `<option value="${esc(num)}">${esc(p.policy)} · ${esc(p.title)}</option>`);
+    }
+  });
+  setMultiSelection('formPolicies', f.policies);
+  setMultiSelection('formRoles', f.roles);
+  setMultiSelection('formDepartments', f.departments);
+  setMultiSelection('formFacilities', f.facilities);
+  renderFormAssignSummary();
+  window.scrollTo({top: 0, behavior: 'smooth'});
+  toast(`${f.id} loaded for revision`);
+}
+
+function manageForm(id) {
+  showView('forms', 'Forms Management Center');
+  editControlledForm(id);
+}
+
+function deleteControlledForm(id) {
+  const f = CONTROLLED_FORMS.find(x => x.id === id);
+  if (!f) return;
+  if (!confirm(`Retire ${f.id} · ${f.name}? It stays in the audit trail but can no longer be assigned.`)) return;
+  CONTROLLED_FORMS = CONTROLLED_FORMS.filter(x => x.id !== id);
+  if (editingFormId === id) clearFormEditor();
+  renderForms();
+  renderTOC();
+  renderPolicyTable();
+  if (currentSection) renderTocPolicyList();
+  toast(`${f.id} retired`);
+}
+
+/* A form uploaded through Bulk Upload arrives here as a draft to catalogue. */
+function addDraftForm(row) {
+  DRAFT_FORMS.push({name: row.name, size: row.file.size, file: row.file, at: new Date().toLocaleString()});
+}
+function catalogueDraft(i) {
+  const d = DRAFT_FORMS[i];
+  if (!d) return;
+  showView('forms', 'Forms Management Center');
+  clearFormEditor();
+  pendingFormFile = d.file;
+  byId('formFileLabel').textContent = d.name;
+  const guessId = (d.name.match(/FRM[-_][A-Za-z0-9-]+/i) || [])[0] || '';
+  byId('newFormId').value = guessId.toUpperCase();
+  byId('newFormName').value = d.name.replace(/\.[^.]+$/, '').replace(/FRM[-_][A-Za-z0-9-]+\s*/i, '').trim();
+  const num = (d.name.match(/\b(\d{3,5})\b/) || [])[1];
+  if (num && POLICIES.some(p => p.policy === num)) {
+    byId('policyLinkSearch').value = num;
+    renderPolicyMulti();
+    setMultiSelection('formPolicies', [num]);
+  }
+  renderFormAssignSummary();
+  toast('Draft loaded — set the ID, links, and audience, then save');
+}
+function dismissDraft(i) {
+  DRAFT_FORMS.splice(i, 1);
+  renderForms();
+  toast('Draft dismissed');
+}
+
+function renderForms() {
+  const host = byId('formsList');
+  if (!host) return;
+  const q = (byId('formSearch')?.value || '').toLowerCase();
+  const risk = byId('formRiskFilter')?.value || '';
+  const rows = CONTROLLED_FORMS.filter(f =>
+    (!risk || String(f.risk) === risk) &&
+    (!q || [f.id, f.name, f.owner, f.file, ...(f.policies || []), ...(f.roles || []), ...(f.departments || [])]
+      .join(' ').toLowerCase().includes(q)));
+  byId('formCount').textContent = `${rows.length} form${rows.length === 1 ? '' : 's'}`;
+  byId('formNavCount').textContent = CONTROLLED_FORMS.length;
+
+  byId('draftForms').innerHTML = DRAFT_FORMS.length
+    ? `<div class="subtle" style="margin-bottom:5px"><b>${DRAFT_FORMS.length}</b> uploaded file${DRAFT_FORMS.length === 1 ? '' : 's'} waiting to be catalogued</div>` +
+      DRAFT_FORMS.map((d, i) => `<div class="formcard draftcard"><div class="formcard-top"><div><h5>${esc(d.name)}</h5><div class="subtle">${esc(fmtSize(d.size))} · uploaded ${esc(d.at)} · not yet a controlled form</div></div><span class="status pending">Draft</span></div><div style="display:flex;justify-content:flex-end;gap:7px;margin-top:9px"><button class="btn outline touchbtn" onclick="dismissDraft(${i})">Dismiss</button><button class="btn primary touchbtn" onclick="catalogueDraft(${i})">Catalogue Form</button></div></div>`).join('')
+    : '';
+
+  host.innerHTML = rows.length ? rows.map(f => {
+    const linked = (f.policies || []).map(num => {
+      const i = POLICIES.findIndex(p => p.policy === String(num));
+      return i >= 0
+        ? `<button class="doclink" onclick="openPolicy(${i})">${esc(num)} · ${esc(POLICIES[i].title)}</button>`
+        : `<span class="assign-chip">${esc(num)}</span>`;
+    }).join('');
+    return `<div class="formcard"><div class="formcard-top"><div><h5>${esc(f.id)} · ${esc(f.name)}</h5><div class="subtle">${esc(f.version)} · ${esc(f.file)} · Owner: ${esc(f.owner)}</div></div>${riskBadge(f.risk)}</div>
+<div class="linkmatrix"><div><b>${f.policies.length}</b><span class="subtle">Linked policies</span></div><div><b>${f.roles.length}</b><span class="subtle">Assigned roles</span></div><div><b>${f.facilities.length}</b><span class="subtle">Facilities</span></div></div>
+<div class="doclinks" style="margin-top:8px">${linked}</div>
+<div class="assign-summary">${f.roles.slice(0, 4).map(r => `<span class="assign-chip">${esc(r)}</span>`).join('')}${f.roles.length > 4 ? `<span class="assign-chip">+${f.roles.length - 4} more roles</span>` : ''}</div>
+<div class="subtle" style="margin-top:7px">${esc(f.notify)}</div>
+<div style="display:flex;justify-content:flex-end;gap:7px;margin-top:10px"><button class="btn outline touchbtn" onclick="deleteControlledForm('${esc(f.id)}')">Retire</button><button class="btn outline touchbtn" onclick="editControlledForm('${esc(f.id)}')">Edit / Reassign</button><button class="btn primary touchbtn" onclick="openForm('${esc(f.id)}')">Open Form</button></div></div>`;
+  }).join('') : '<div class="subtle" style="padding:30px;text-align:center">No forms match the current filters.</div>';
 }

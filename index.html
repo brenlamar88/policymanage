@@ -103,6 +103,20 @@
 .form-source{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--blue)}
 .tocsectionhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:4px}
 .toc-empty{padding:28px;text-align:center;color:var(--muted)}
+.formmanage-grid{display:grid;grid-template-columns:1.05fr 1.45fr;gap:16px;margin-top:16px}
+.uploadzone{display:block;border:2px dashed #b9ccdc;border-radius:12px;padding:22px;text-align:center;background:#f8fbfd;cursor:pointer;transition:.18s}
+.uploadzone:hover{border-color:var(--blue);background:#f1f8fd}
+.uploadzone input{display:none}
+.multi{width:100%;min-height:132px;border:1px solid var(--line);border-radius:9px;padding:7px;background:#fff}
+.multi.compact{min-height:104px}
+.multi-actions{display:flex;gap:6px;justify-content:flex-end;margin:0 0 6px}
+.mini-btn{border:1px solid var(--line);background:#f8fafc;color:var(--navy);border-radius:7px;padding:5px 8px;font-size:10px;font-weight:700;cursor:pointer}
+.mini-btn:hover{background:var(--sky)}
+.required{color:var(--r5)}
+.formcard{padding:14px;border:1px solid var(--line);border-radius:11px;margin:9px 0;background:#fff}
+.formcard-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.formcard h5{margin:0 0 4px;font-size:14px;color:var(--navy)}
+.draftcard{border-left:4px solid var(--r3);background:#fffdf5}
 .modalbox.wide{width:min(1120px,96vw)}
 .docviewer{display:grid;grid-template-columns:1.35fr .85fr;gap:16px}
 .docframe{width:100%;height:62vh;border:1px solid var(--line);border-radius:9px;background:#fff}
@@ -143,7 +157,7 @@
 .sectionfilter input{flex:1;min-width:180px;border:1px solid var(--line);border-radius:9px;padding:9px 11px}
 .pendingpill{background:#fff7dd;color:#8a6500;font-weight:700}
 @media(max-width:760px){.batchbar{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:1100px){.kpis{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.tocgrid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:1100px){.formmanage-grid{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.tocgrid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:1000px){.tocworkspace{grid-template-columns:1fr}.tocinfo{position:static}}
 @media(max-width:760px){.app{grid-template-columns:1fr}.sidebar{display:none}.content{padding:16px}.kpis,.tocgrid{grid-template-columns:1fr}.topbar{padding:0 14px}.hero{flex-direction:column}.toolbar{flex-wrap:wrap}.select{flex:1}.user span{display:none}}
 </style></head><body>
@@ -153,6 +167,7 @@
 <div class="navlabel">Command Center</div>
 <button class="navbtn active" data-view="dashboard" onclick="showView('dashboard','Enterprise Policy Dashboard')">⌂ <span>Dashboard</span></button>
 <button class="navbtn" data-view="library" onclick="showView('library','Policy &amp; Form Library')">▤ <span>Policy &amp; Form Library</span><span class="count" id="libraryNavCount">0</span></button>
+<button class="navbtn" data-view="forms" onclick="showView('forms','Forms Management Center')">▧ <span>Forms Management</span><span class="count" id="formNavCount">0</span></button>
 <button class="navbtn" data-view="toc" onclick="showView('toc','Enterprise Table of Contents')">☰ <span>Table of Contents</span><span class="count" id="tocNavCount">0</span></button>
 <div class="navlabel">Quick TOC — <span id="quickTocCount">0</span> Sections</div><div id="quickToc" class="quicktoc"></div>
 </aside>
@@ -189,6 +204,30 @@
 </div>
 <div class="tablewrap"><table class="table"><thead><tr><th>Risk</th><th>Policy</th><th>Regulatory Driver</th><th>Associated Forms</th><th>Control Status</th><th></th></tr></thead><tbody id="policyRows"></tbody></table></div>
 <div class="footer-note">Prototype displays the first 150 matching records for performance; production would use server-side pagination, full-text search, and document indexing.</div></div></section>
+
+<section id="forms" class="view">
+<div class="hero"><div><h3>Freedom Forms Management Center</h3><p>Control enterprise forms, link one form to many policies, and assign access or required use by hospital, department, and role.</p></div><div class="hero-actions"><button class="btn white touchbtn" onclick="byId('formFile').click()">+ Upload Form</button><button class="btn primary touchbtn" onclick="openUpload()">⇧ Bulk Upload</button></div></div>
+<div class="formmanage-grid">
+
+<div class="card panel"><div class="panelhead"><div><h4 id="formEditorTitle">Create / Revise Controlled Form</h4><div class="subtle">One controlled form can support many policies and audiences.</div></div><span class="pill">Admin Only</span></div>
+<label class="uploadzone" for="formFile"><input id="formFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv" onchange="handleFormFile(this)"><div style="font-size:26px">⇧</div><b id="formFileLabel">Touch to select or drop a form</b><div class="subtle" style="margin-top:5px">PDF, DOCX, XLSX, CSV · controlled version retained</div></label>
+<div class="formrow"><div class="field"><label>Form ID / Number <span class="required">*</span></label><input id="newFormId" placeholder="e.g., FRM-15008-A"></div><div class="field"><label>Version</label><input id="newFormVersion" value="v1.0"></div></div>
+<div class="field"><label>Form Name <span class="required">*</span></label><input id="newFormName" placeholder="e.g., Patient Rights Acknowledgement"></div>
+<div class="formrow"><div class="field"><label>Owner Department</label><select id="formOwnerDept"></select></div><div class="field"><label>Risk Level</label><select id="formRisk"><option value="5">5 — Immediate / Critical</option><option value="4">4 — High Risk</option><option value="3" selected>3 — Operational Compliance</option><option value="2">2 — Low/Moderate</option><option value="1">1 — Administrative</option></select></div></div>
+<div class="field"><label>Link to Multiple Policies <span class="required">*</span></label><input id="policyLinkSearch" placeholder="Search policy number or title…" oninput="renderPolicyMulti()" style="margin-bottom:6px"><select id="formPolicies" class="multi" multiple onchange="renderFormAssignSummary()"></select><div class="subtle">Ctrl/⌘ click for multiple on desktop; touch devices select items individually.</div></div>
+<div class="field" style="margin-top:10px"><label>Assign to Hospital Roles</label><div class="multi-actions"><button type="button" class="mini-btn" onclick="selectAllMulti('formRoles',true);renderFormAssignSummary()">Select All</button><button type="button" class="mini-btn" onclick="selectAllMulti('formRoles',false);renderFormAssignSummary()">Clear</button></div><select id="formRoles" class="multi compact" multiple onchange="renderFormAssignSummary()"></select></div>
+<div class="field" style="margin-top:10px"><label>Assign to Departments</label><div class="multi-actions"><button type="button" class="mini-btn" onclick="selectAllMulti('formDepartments',true);renderFormAssignSummary()">Select All</button><button type="button" class="mini-btn" onclick="selectAllMulti('formDepartments',false);renderFormAssignSummary()">Clear</button></div><select id="formDepartments" class="multi compact" multiple onchange="renderFormAssignSummary()"></select></div>
+<div class="field" style="margin-top:10px"><label>Assign to Hospitals / Facilities</label><div class="multi-actions"><button type="button" class="mini-btn" onclick="selectAllMulti('formFacilities',true);renderFormAssignSummary()">Select All</button><button type="button" class="mini-btn" onclick="selectAllMulti('formFacilities',false);renderFormAssignSummary()">Clear</button></div><select id="formFacilities" class="multi compact" multiple onchange="renderFormAssignSummary()"></select></div>
+<div class="field" style="margin-top:10px"><label>Update Notification Rule</label><select id="formNotify"><option>Portal + Email + Acknowledgement Required</option><option>Portal + Email</option><option>Portal Only</option><option>Email + Manager Escalation</option></select></div>
+<div id="formAssignSummary" class="assignment-preview" style="margin-top:10px"></div>
+<div style="display:flex;gap:8px;margin-top:14px"><button class="btn primary touchbtn" style="flex:1" onclick="saveControlledForm()">Save Controlled Form &amp; Assign</button><button class="btn outline touchbtn" onclick="clearFormEditor()">Clear</button></div></div>
+
+<div class="card panel"><div class="panelhead"><div><h4>Controlled Forms Library</h4><div class="subtle">Policy links, assigned roles, departments, facilities, and active version.</div></div><span id="formCount" class="pill">0 forms</span></div>
+<div id="draftForms"></div>
+<div class="toolbar"><input id="formSearch" class="search" placeholder="Search forms, policy links, roles…" oninput="renderForms()"><select id="formRiskFilter" class="select" onchange="renderForms()"><option value="">All Risk Levels</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select></div>
+<div id="formsList"></div></div>
+
+</div></section>
 
 <section id="toc" class="view">
 <div class="hero"><div><h3>Enterprise Policy Table of Contents</h3><p>Digital TOC organized from the uploaded tracker. Touch a section to review its policies, then touch a policy to see current policy information and all linked forms.</p></div></div>

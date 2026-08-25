@@ -327,6 +327,8 @@ function init() {
   fillMulti('userRoles', FORM_ROLES);
   fillMulti('userDepartments', FORM_DEPTS);
   byId('userSecurityRole').innerHTML = SECURITY_ROLES.map(r => `<option>${esc(r.name)}</option>`).join('');
+  byId('userSecurityRole').addEventListener('change', renderSignInBox);
+  byId('userEmail').addEventListener('input', renderSignInBox);
   byId('userRoleFilter').insertAdjacentHTML('beforeend', SECURITY_ROLES.map(r => `<option>${esc(r.name)}</option>`).join(''));
   renderSecurityRoles();
   renderUsers();
@@ -1538,6 +1540,24 @@ const SECURITY_ROLES = [
   {name: 'Survey / Read-Only',   level: 'Read only', admin: false, can: 'Time-limited evidence access for surveyors'}
 ];
 const isAdminRole = name => !!SECURITY_ROLES.find(r => r.name === name && r.admin);
+
+/* Freedom signs in with Microsoft 365, so an account is only usable if its
+   address lives in the tenant. Anything else is a directory record without
+   a way in — worth showing rather than hiding. */
+const TENANT_DOMAIN = 'freedomhc.com';
+const ENTRA_GROUPS = {
+  'System Administrator': 'FPC-System-Admins',
+  'Policy Administrator': 'FPC-Policy-Admins',
+  'Policy Owner': 'FPC-Policy-Owners',
+  'Approver': 'FPC-Approvers',
+  'Manager': 'FPC-Managers',
+  'Employee': '(authenticated, no group)',
+  'Survey / Read-Only': 'FPC-Survey-ReadOnly'
+};
+const inTenant = email => String(email).toLowerCase().endsWith('@' + TENANT_DOMAIN);
+const signInChip = e => inTenant(e.email)
+  ? `<span class="pill" title="Signs in with Microsoft 365 as ${esc(e.email)}">Microsoft 365</span>`
+  : `<span class="status pending" title="Not in the ${TENANT_DOMAIN} tenant — this account cannot sign in">No M365 account</span>`;
 const securityRoleOf = e => e.securityRole || 'Employee';
 let editingUserId = null;
 
@@ -1553,7 +1573,7 @@ function renderSecurityRoles() {
   byId('roleGrid').innerHTML = SECURITY_ROLES.map(r => {
     const held = EMPLOYEES.filter(e => securityRoleOf(e) === r.name).length;
     const cls = r.level === 'Highest' ? 'overdue' : r.admin || r.level === 'Scoped' ? 'pending' : 'good';
-    return `<div class="rolecard"><span class="status ${cls} lvl">${esc(r.level)}</span><b>${esc(r.name)}</b><p>${esc(r.can)}</p><p><b>${held}</b> ${held === 1 ? 'person' : 'people'}</p></div>`;
+    return `<div class="rolecard"><span class="status ${cls} lvl">${esc(r.level)}</span><b>${esc(r.name)}</b><p>${esc(r.can)}</p><p class="vhhash">Entra group: ${esc(ENTRA_GROUPS[r.name] || '—')}</p><p><b>${held}</b> ${held === 1 ? 'person' : 'people'}</p></div>`;
   }).join('');
 }
 
@@ -1561,7 +1581,21 @@ function userAssignmentCount(id) {
   return ASSIGNMENTS.filter(a => a.userId === id).length;
 }
 
+function renderSignInBox() {
+  const host = byId('userSignInBox');
+  if (!host) return;
+  const email = (byId('userEmail').value || '').trim();
+  const role = byId('userSecurityRole').value;
+  const group = ENTRA_GROUPS[role] || '';
+  host.innerHTML = !email
+    ? `<div class="rulebox" style="margin:0">Sign-in is Microsoft 365 — enter a <b>@${TENANT_DOMAIN}</b> address to link this account to the tenant.</div>`
+    : inTenant(email)
+      ? `<div class="rulebox" style="margin:0"><b>Microsoft 365 sign-in</b> · UPN <b>${esc(email)}</b> · Entra group <b>${esc(group)}</b>. The Entra object id is captured on first sign-in and becomes the permanent link.</div>`
+      : `<div class="rulebox" style="margin:0;border-color:#f3d38a;background:#fff9e8;color:#725400"><b>${esc(email)}</b> is outside the ${TENANT_DOMAIN} tenant, so this person cannot sign in. Keep it as a directory record, or use a Microsoft 365 address — external reviewers should get an Entra guest account in <b>FPC-Survey-ReadOnly</b>.</div>`;
+}
+
 function renderUserPreview() {
+  renderSignInBox();
   const host = byId('userPreview');
   if (!host) return;
   const roles = selectedValues('userRoles'), depts = selectedValues('userDepartments');
@@ -1701,7 +1735,8 @@ function renderUsers() {
   host.innerHTML = rows.length ? rows.map(e => {
     const role = securityRoleOf(e);
     return `<tr><td><b>${esc(e.first)} ${esc(e.last)}</b>${e.id === CURRENT_USER_ID ? ' <span class="adminbadge">YOU</span>' : ''}<div class="subtle">${esc(e.id)} · ${esc(e.email)}</div></td>
-<td>${isAdminRole(role) ? `<span class="adminbadge">${esc(role)}</span>` : `<span class="pill">${esc(role)}</span>`}</td>
+<td>${signInChip(e)}</td>
+<td>${isAdminRole(role) ? `<span class="adminbadge">${esc(role)}</span>` : `<span class="pill">${esc(role)}</span>`}<div class="subtle">${esc(ENTRA_GROUPS[role] || '')}</div></td>
 <td>${(e.roles || []).slice(0, 2).map(r => `<span class="tag">${esc(r)}</span>`).join('') || '<span class="subtle">No hospital role</span>'}<div class="subtle">${esc((e.departments || []).join(', ') || 'No department')}</div></td>
 <td>${esc(e.facility)}</td>
 <td><b>${userAssignmentCount(e.id)}</b></td>

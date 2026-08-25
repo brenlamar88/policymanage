@@ -102,7 +102,48 @@ Cost shape: dominated by storage (tens of GB) and egress, not compute.
   and survey defensibility, not HIPAA: standard managed hosting is sufficient, and no BAA
   or PHI-scoped bucket is required. The upload-time identifier warning keeps it that way.
 
-## 6. Backup & retention
+## 6. Authentication & identity
+
+**Freedom signs in with Microsoft 365.** No passwords are stored in this system.
+
+- **Entra ID (Azure AD) as the identity provider**, wired through Supabase Auth's Azure
+  provider. Staff hit "Sign in with Microsoft" and land in the portal; MFA, conditional
+  access, and password policy stay where IT already manages them.
+- **`entra_object_id` is the join key**, not the email address. Object ids survive name
+  changes, surname changes, and re-licensing; UPNs do not. `app_user.upn` is stored too,
+  but only for display and support.
+- **Just-in-time provisioning.** First successful sign-in creates the `app_user` row from
+  the token claims (name, UPN, object id) with the `Employee` security role. An
+  administrator then sets hospital role and department, which is what triggers assignment.
+- **Group-to-role mapping.** Entra security groups drive the system's security roles, so
+  access is granted by moving someone between groups rather than editing them here:
+
+  | Entra group | Security role |
+  |---|---|
+  | `FPC-System-Admins` | System Administrator |
+  | `FPC-Policy-Admins` | Policy Administrator |
+  | `FPC-Policy-Owners` | Policy Owner |
+  | `FPC-Approvers` | Approver |
+  | `FPC-Managers` | Manager |
+  | *(authenticated, no group)* | Employee |
+
+  Map group object ids, not display names — renaming a group in Entra must not silently
+  revoke anyone's access.
+- **Offboarding is automatic.** A disabled Entra account cannot sign in, and the nightly
+  Graph sync flips the `app_user` row to inactive, which withdraws outstanding assignments
+  while acknowledgement evidence stays in the audit trail. This is the single most
+  important reason to source the roster from Entra rather than maintain it by hand.
+- **Surveyors and other externals** get time-limited Entra guest accounts in the
+  `FPC-Survey-ReadOnly` group, not shared logins.
+- **Service access** (the ingestion worker) uses a service principal, never a person's
+  account.
+
+Two things to confirm with IT before build: whether the roster syncs on a schedule via
+Microsoft Graph or only just-in-time at sign-in, and whether the tenant issues group claims
+in the token or requires a Graph lookup (large group counts get omitted from the token, so
+a lookup is usually the safer path).
+
+## 7. Backup & retention
 
 - PITR on the database (7–30 days depending on plan) plus nightly logical dumps to
   separate storage.
@@ -113,7 +154,7 @@ Cost shape: dominated by storage (tens of GB) and egress, not compute.
 - Quarterly restore drill, restoring into a scratch project and verifying a known
   acknowledgement record.
 
-## 7. Build phases
+## 8. Build phases
 
 | Phase | Scope | Unblocks |
 |---|---|---|
@@ -123,12 +164,10 @@ Cost shape: dominated by storage (tens of GB) and egress, not compute.
 | 3 | Notifications, reminders, escalation, survey evidence exports | the compliance value |
 | 4 | Regulatory intelligence: sources, findings, pgvector policy matching | the AI module |
 
-## 8. Open questions
+## 9. Open questions
 
 1. **Headcount** — how many active employees across the 13 facilities? Drives assignment
    and acknowledgement volume (the estimates above assume ~2,000).
-2. **Identity** — is there an existing SSO (Entra ID / Google Workspace) to authenticate
-   against, or do we manage credentials in-app?
-3. **State variants** — one enterprise policy with state addenda, or separate policy
+2. **State variants** — one enterprise policy with state addenda, or separate policy
    records per state? The schema supports both (`policy.applies_to_states`); the operating
    preference decides which one Compliance actually maintains.

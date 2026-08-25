@@ -41,6 +41,14 @@ create table toc_section (
 create table app_user (
   id                  uuid primary key default gen_random_uuid(),
   auth_user_id        uuid unique,                       -- maps to auth.users(id) on Supabase
+  -- Freedom signs in with Microsoft 365. The Entra object id is the stable
+  -- join key: it survives name changes, email changes, and re-licensing,
+  -- which a UPN does not.
+  entra_object_id     uuid unique,
+  upn                 citext unique,                     -- user principal name in the tenant
+  directory_source    text not null default 'entra'
+                       check (directory_source in ('entra','manual')),
+  directory_synced_at timestamptz,
   employee_no         text unique,
   first_name          text not null,
   last_name           text not null,
@@ -349,5 +357,7 @@ create index ack_policy_version_idx    on acknowledgement (policy_version_id);
 create index audit_entity_idx          on audit_event (entity_type, entity_id, occurred_at desc);
 create index audit_actor_idx           on audit_event (actor_user_id, occurred_at desc);
 
+create index app_user_entra_idx        on app_user (entra_object_id);
+create index app_user_upn_idx          on app_user (upn);
 create index user_role_role_idx        on user_role (role_id);
 create index user_dept_dept_idx        on user_department (department_id);

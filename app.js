@@ -211,7 +211,7 @@ function openPolicy(idx) {
 <div class="formrow"><div class="field"><label>Owner</label><input value="Corporate Policy Administrator" readonly></div><div class="field"><label>Next Review</label><input value="09/30/2026" readonly></div></div>
 <div class="docpreview"><b>Controlled Policy Preview</b><p>This prototype connects the enterprise policy record to its controlled document, associated forms, revision history, and employee acknowledgements. The production system would render the approved PDF/DOCX here and prevent obsolete versions from being used.</p><p><b>Associated forms:</b> ${formList.length ? formList.map(esc).join(', ') : 'None listed in tracker'}</p><p><b>Notification rule:</b> Any approved revision creates a group notification and re-acknowledgement task for the assigned audience.</p></div>
 <div class="readtrack"><div><b>84%</b><span class="subtle">Acknowledged</span></div><div><b>118</b><span class="subtle">Assigned</span></div><div><b>19</b><span class="subtle">Outstanding</span></div></div>
-<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px"><button class="btn outline touchbtn" onclick="toast('Version history opened')">Version History</button><button class="btn primary touchbtn" onclick="acknowledge('${esc(p.policy)}')">Acknowledge Policy</button></div>`;
+<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px"><button class="btn outline touchbtn" onclick="byId('policyModal').classList.remove('show');openVersionHistory(${idx})">Version History</button><button class="btn primary touchbtn" onclick="acknowledge('${esc(p.policy)}')">Acknowledge Policy</button></div>`;
   byId('policyModal').classList.add('show');
 }
 function acknowledge(id) {
@@ -293,7 +293,7 @@ function selectTocPolicy(idx) {
 <div class="formrow"><div class="field"><label>Current Revision</label><input value="${esc(p.revision || 'Current controlled version')}" readonly></div><div class="field"><label>Total Linked Forms</label><input value="${cards.length}" readonly></div></div>
 <div style="margin-top:13px"><div class="panelhead" style="margin-bottom:7px"><h4>Forms Associated With This Policy</h4><span class="pill">${cards.length} linked</span></div>${cards.length ? cards.join('') : '<div class="toc-empty" style="padding:18px">No forms are currently linked to this policy.</div>'}</div>
 ${pendingBlock(idx)}
-<div style="display:flex;gap:7px;justify-content:flex-end;margin-top:12px"><button class="btn outline touchbtn" onclick="openPolicy(${idx})">Open Policy Record</button><button class="btn primary touchbtn" onclick="filterSection('${esc(p.section)}')">View Section in Library</button></div>`;
+<div style="display:flex;gap:7px;justify-content:flex-end;margin-top:12px"><button class="btn outline touchbtn" onclick="openVersionHistory(${idx})">Version History</button><button class="btn outline touchbtn" onclick="openPolicy(${idx})">Open Policy Record</button><button class="btn primary touchbtn" onclick="filterSection('${esc(p.section)}')">View Section in Library</button></div>`;
 }
 
 /* ---------- init ---------- */
@@ -351,18 +351,80 @@ let QUEUE = [];                 // files staged for this batch
 let queueSeq = 0;
 let uploading = false;
 const INGESTED = new Set();     // fingerprints already accepted this session
-const PENDING_VERSIONS = new Map();   // policy index -> [{name, size, at}]
+/* Every controlled document's versions live here: the baseline record that
+   was in force when the library was seeded, plus each uploaded version.
+   Nothing is ever overwritten — approving a pending version supersedes the
+   previous one and both are kept. */
+const POLICY_VERSIONS = new Map();    // policy index -> [version]
+let versionSeq = 0;
 
-const pendingCount = idx => (PENDING_VERSIONS.get(idx) || []).length;
+function versionsFor(idx) {
+  if (!POLICY_VERSIONS.has(idx)) {
+    const p = POLICIES[idx];
+    POLICY_VERSIONS.set(idx, [{
+      id: ++versionSeq,
+      label: p.revision || 'v1.0',
+      status: 'published',
+      at: null,
+      by: 'Imported from the enterprise tracker',
+      filename: null, size: null, file: null, hash: null,
+      note: 'Baseline record — controlled document not yet uploaded'
+    }]);
+  }
+  return POLICY_VERSIONS.get(idx);
+}
+
+function nextVersionLabel(idx) {
+  const nums = versionsFor(idx)
+    .map(v => parseFloat(String(v.label).replace(/^v/i, '')))
+    .filter(n => !isNaN(n));
+  return 'v' + ((nums.length ? Math.max(...nums) : 1) + 0.1).toFixed(1);
+}
+
+function addUploadedVersion(idx, row) {
+  const v = {
+    id: ++versionSeq,
+    label: nextVersionLabel(idx),
+    status: 'pending',
+    at: new Date(),
+    by: 'Enterprise Admin',
+    filename: row.name, size: row.file.size, file: row.file,
+    hash: row.fp ? row.fp.split(':')[0] : null,
+    note: 'Uploaded — awaiting review and approval'
+  };
+  versionsFor(idx).push(v);
+  return v;
+}
+
+/* Approval is the deliberate step: the pending version takes force and the
+   one it replaces becomes superseded. */
+function publishVersion(idx, versionId) {
+  const list = versionsFor(idx);
+  const v = list.find(x => x.id === versionId);
+  if (!v || v.status !== 'pending') return;
+  if (!confirm(`Publish ${v.label} of ${POLICIES[idx].policy}? The version in force becomes superseded and staff are re-assigned this text.`)) return;
+  list.forEach(x => { if (x.status === 'published') { x.status = 'superseded'; x.retiredAt = new Date(); } });
+  v.status = 'published';
+  v.publishedAt = new Date();
+  v.note = 'Published — current controlled version';
+  POLICIES[idx].revision = v.label;
+  renderVersionHistory(idx);
+  renderPolicyTable();
+  renderTOC();
+  if (currentSection) renderTocPolicyList();
+  toast(`${POLICIES[idx].policy} ${v.label} published — previous version superseded`);
+}
+
+const pendingCount = idx => versionsFor(idx).filter(v => v.status === 'pending').length;
 const fmtSize = b => b >= 1024 * 1024 * 1024 ? (b / 1073741824).toFixed(2) + ' GB'
   : b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB'
   : b >= 1024 ? Math.round(b / 1024) + ' KB' : b + ' B';
 const extOf = name => (name.split('.').pop() || '').toLowerCase();
 
 function pendingBlock(idx) {
-  const list = PENDING_VERSIONS.get(idx) || [];
+  const list = versionsFor(idx).filter(v => v.status === 'pending');
   if (!list.length) return '';
-  return `<div class="form-info-card" style="border-left:4px solid var(--r3)"><div class="form-source">Pending Upload</div>${list.map((f, i) => `<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin:4px 0"><div class="subtle"><b>${esc(f.name)}</b> · ${esc(fmtSize(f.size))} · uploaded ${esc(f.at)}</div><button class="btn outline" style="padding:5px 9px;font-size:11px" onclick="openPendingUpload(${idx}, ${i})">Open</button></div>`).join('')}<div class="subtle" style="margin-top:6px">Awaiting review and approval before it becomes the published version.</div></div>`;
+  return `<div class="form-info-card" style="border-left:4px solid var(--r3)"><div class="form-source">Pending Upload</div>${list.map(v => `<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin:4px 0"><div class="subtle"><b>${esc(v.filename)}</b> · ${esc(fmtSize(v.size))} · ${esc(v.label)} · uploaded ${esc(v.at.toLocaleString())}</div><button class="btn outline" style="padding:5px 9px;font-size:11px" onclick="openVersionDoc(${idx}, ${v.id})">Open</button></div>`).join('')}<div class="subtle" style="margin-top:6px">Awaiting review and approval before it becomes the published version. <button class="btn outline" style="padding:4px 8px;font-size:11px" onclick="openVersionHistory(${idx})">Version history</button></div></div>`;
 }
 
 function renderUploadRules() {
@@ -597,11 +659,7 @@ async function processRow(r) {
   r.stage = 'Ready for review';
   INGESTED.add(r.fp);
   if (r.kind === 'form') r.formNumber ? registerMappedForm(r) : addDraftForm(r);
-  if (r.kind !== 'form' && r.targetIdx !== null) {
-    const list = PENDING_VERSIONS.get(r.targetIdx) || [];
-    list.push({name: r.name, size: r.file.size, at: new Date().toLocaleString(), file: r.file, ext: r.ext});
-    PENDING_VERSIONS.set(r.targetIdx, list);
-  }
+  if (r.kind !== 'form' && r.targetIdx !== null) addUploadedVersion(r.targetIdx, r);
   renderQueue();
 }
 
@@ -734,8 +792,8 @@ function openForm(formId) {
       ['Notification rule', esc(f.notify)]
     ],
     versions: [
-      {label: f.version, note: 'Published — current controlled version', state: 'Current', cls: 'good'},
-      {label: 'v' + (parseFloat(f.version.replace(/^v/, '')) - 0.1).toFixed(1), note: 'Superseded — retained for audit', state: 'Superseded', cls: 'pending'}
+      {label: f.version, note: f.blob ? 'Published — current controlled version' : 'On record — document not yet uploaded', state: 'Current', cls: 'good'},
+      ...(f.priorVersions || []).map(v => ({label: v.label, note: `Superseded ${v.at}`, state: 'Superseded', cls: 'pending'}))
     ],
     placeholder: `<div class="paper"><div class="watermark">CONTROLLED COPY</div>
 <div class="paperhead"><h4>${esc(f.name)}</h4><div class="subtle">Form ${esc(f.id)} · ${esc(f.version)} · Freedom Behavioral Health</div></div>
@@ -748,30 +806,63 @@ function openForm(formId) {
   });
 }
 
-/* A document uploaded in this session — real bytes, real render. */
-function openPendingUpload(policyIdx, i) {
-  const entry = (PENDING_VERSIONS.get(policyIdx) || [])[i];
-  if (!entry) { toast('Upload not found'); return; }
+/* A specific version of a policy document — real bytes when it was uploaded
+   in this session, the record sheet when it is the imported baseline. */
+function openVersionDoc(policyIdx, versionId) {
+  const v = versionsFor(policyIdx).find(x => x.id === versionId);
+  if (!v) { toast('Version not found'); return; }
   const p = POLICIES[policyIdx];
+  const state = {published: ['good', 'Current controlled version'], pending: ['pending', 'Pending review — not published'], superseded: ['pending', 'Superseded — retained for audit']}[v.status];
   openDocViewer({
-    title: entry.name,
-    subtitle: `Pending version for ${p.policy} · ${p.title}`,
-    file: entry.file,
+    title: v.filename || `${p.policy} · ${p.title}`,
+    subtitle: `${v.label} · ${p.policy} · ${p.title}`,
+    file: v.file,
     linkedPolicies: [policyIdx],
     meta: [
-      ['Status', '<span class="status pending">Pending review — not published</span>'],
-      ['Uploaded', esc(entry.at)],
-      ['Size', esc(fmtSize(entry.size))],
-      ['Ingest pipeline', '<span class="status good">Scanned · extracted · indexed</span>'],
+      ['Status', `<span class="status ${state[0]}">${state[1]}</span>`],
+      ['Version', esc(v.label)],
+      [v.at ? 'Uploaded' : 'Origin', esc(v.at ? v.at.toLocaleString() : v.by)],
+      ['Size', v.size ? esc(fmtSize(v.size)) : '<span class="subtle">No file attached</span>'],
+      ['Content hash', v.hash ? `<span class="vhhash">${esc(v.hash.slice(0, 32))}…</span>` : '<span class="subtle">—</span>'],
       ['Policy', `${esc(p.policy)} · ${esc(p.title)}`],
       ['Section', esc(p.section)]
     ],
-    versions: [
-      {label: 'This upload', note: 'Awaiting approval', state: 'Pending', cls: 'pending'},
-      {label: 'Current published', note: 'In force until this is approved', state: 'Current', cls: 'good'}
-    ],
-    placeholder: ''
+    versions: versionsFor(policyIdx).map(x => ({
+      label: x.label,
+      note: x.note,
+      state: x.status === 'published' ? 'Current' : x.status === 'pending' ? 'Pending' : 'Superseded',
+      cls: x.status === 'published' ? 'good' : 'pending'
+    })),
+    placeholder: `<div class="paper"><div class="watermark">${v.status === 'superseded' ? 'SUPERSEDED' : 'CONTROLLED COPY'}</div><div class="paperhead"><h4>${esc(p.title)}</h4><div class="subtle">Policy ${esc(p.policy)} · ${esc(v.label)} · ${esc(p.section)}</div></div><p><b>No file attached to this version.</b> ${esc(v.note)}.</p><p>Upload the controlled document through Bulk Upload and it becomes a pending version here, rendered in this pane and publishable from the version history.</p></div>`
   });
+}
+/* kept for older call sites */
+const openPendingUpload = (idx, i) => {
+  const pending = versionsFor(idx).filter(v => v.status === 'pending');
+  if (pending[i]) openVersionDoc(idx, pending[i].id);
+};
+
+function openVersionHistory(idx) {
+  const p = POLICIES[idx];
+  if (!p) return;
+  byId('vhTitle').textContent = `Version History — ${p.policy}`;
+  byId('vhSubtitle').textContent = `${p.title} · ${p.section}`;
+  renderVersionHistory(idx);
+  byId('versionModal').classList.add('show');
+}
+
+function renderVersionHistory(idx) {
+  const rows = versionsFor(idx).slice().sort((a, b) => b.id - a.id);
+  const chip = {published: ['good', 'Current'], pending: ['pending', 'Pending review'], superseded: ['pending', 'Superseded']};
+  byId('vhBody').innerHTML = `<div class="subtle" style="margin-bottom:6px">${rows.length} version${rows.length === 1 ? '' : 's'} on record · newest first</div>` +
+    rows.map(v => {
+      const [cls, label] = chip[v.status];
+      const when = v.at ? v.at.toLocaleString() : 'On record at import';
+      return `<div class="vhrow ${v.status === 'published' ? 'current' : ''}">
+<div class="vhlabel"><b>${esc(v.label)}</b><span class="status ${cls}">${label}</span></div>
+<div><div class="vhmeta">${esc(when)} · ${esc(v.by)}</div>${v.filename ? `<div class="vhmeta">${esc(v.filename)} · ${esc(fmtSize(v.size))}</div>` : ''}<div class="vhmeta">${esc(v.note)}</div>${v.hash ? `<div class="vhhash">sha256 ${esc(v.hash.slice(0, 40))}…</div>` : ''}</div>
+<div class="vhactions"><button class="btn outline" onclick="openVersionDoc(${idx}, ${v.id})">Open</button>${v.status === 'pending' ? `<button class="btn primary" onclick="publishVersion(${idx}, ${v.id})">Approve &amp; Publish</button>` : ''}</div></div>`;
+    }).join('');
 }
 
 
@@ -1351,6 +1442,7 @@ function registerMappedForm(row) {
     .replace(/[_-]+/g, ' ').trim() || (FORM_TITLES.get(num) || `Form ${num}`);
   const risk = indexes.length ? Math.max(...indexes.map(i => POLICIES[i].risk)) : 3;
   const existing = CONTROLLED_FORMS.find(f => f.id === num);
+  const priors = existing ? [...(existing.priorVersions || []), {label: existing.version, at: new Date().toLocaleDateString()}] : [];
   const rec = {
     id: num,
     name,
@@ -1364,6 +1456,7 @@ function registerMappedForm(row) {
     facilities: existing?.facilities || ['Enterprise / Corporate'],
     owner: existing?.owner || 'Compliance / Risk',
     notify: existing?.notify || 'Portal + Email + Acknowledgement Required',
+    priorVersions: priors,
     source: 'tracker mapping'
   };
   if (existing) Object.assign(existing, rec); else CONTROLLED_FORMS.unshift(rec);

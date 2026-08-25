@@ -31,6 +31,14 @@ Static, no build step and no dependencies. Open `index.html` in a browser, or se
 npx http-server .
 ```
 
+## Seeded accounts
+
+- Corporate administrators (`@freedomhc.com`) — System Administrator.
+- Thirteen facility accounts (`@freedombehavioral.com`, one per hospital) — seeded as
+  **Manager**, which under the access rules above means the three reading views. Raise them
+  to **Policy Administrator** in User Management if they should upload and publish for their
+  own site.
+
 ## Backend plan
 
 The prototype is front-end only; the backing platform is planned in:

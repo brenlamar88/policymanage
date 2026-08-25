@@ -17,7 +17,7 @@ const FORM_ROLES = ["CEO / President","Chief Operating Officer","Chief Nursing O
 
 const FORM_DEPTS = ["Executive Leadership","Administration","Nursing","Medical Staff","Clinical / Therapy","Social Services","Case Management","Utilization Review","Central Intake / Admissions","Quality / Performance Improvement","Compliance / Risk","Human Resources","HIM / Medical Records","Pharmacy / Medication Management","Infection Prevention","Environment of Care","Life Safety","Emergency Management","Dietary","Business Development / Service Development","IOP","Transportation","Finance / Accounting","Revenue Cycle / Billing","IT / Security","Plant Operations / Maintenance"];
 
-const FORM_FACILITIES = ["Enterprise / Corporate","Freedom Bastrop","Freedom Bunkie","Freedom DeQuincy","Freedom Ferriday","Freedom Lake Charles","Freedom Leesville","Freedom Minden","Freedom Monroe","Freedom Ville Platte","Freedom Magnolia","Freedom Greenville","Freedom Plainview"];
+const FORM_FACILITIES = ["Enterprise / Corporate","Freedom Bastrop","Freedom Bunkie","Freedom DeQuincy","Freedom Ferriday","Freedom Lake Charles","Freedom Leesville","Freedom Minden","Freedom Monroe","Freedom West Monroe","Freedom Ville Platte","Freedom Magnolia","Freedom Greenville","Freedom Plainview"];
 
 /* ============================================ tracker form-number mapping
    POLICY_FORM_MAP (data/policy-form-map.js) is the authority on which form
@@ -1197,6 +1197,22 @@ const EMPLOYEES = [
   {id:'FB-10001', first:'Bren', last:'Roberts', email:'broberts@freedomhc.com', facility:'Enterprise / Corporate', departments:['Administration','IT / Security'], roles:['IT / Systems Administrator'], securityRole:'System Administrator', status:'Active'},
   {id:'FB-10002', first:'S.', last:'Chisholm', email:'schisholm@freedomhc.com', facility:'Enterprise / Corporate', departments:['Administration'], roles:[], securityRole:'System Administrator', status:'Active'},
   {id:'FB-10003', first:'J.', last:'Reed', email:'jreed@freedomhc.com', facility:'Enterprise / Corporate', departments:['Administration'], roles:[], securityRole:'System Administrator', status:'Active'},
+  /* Facility accounts (shared mailboxes, @freedombehavioral.com). Seeded as
+     Manager — see README: raise to Policy Administrator if they should be
+     able to upload and publish for their site. */
+  {id:'FB-20001', first:'Plainview', last:'Administrator', email:'Plainviewadmin@freedombehavioral.com', facility:'Freedom Plainview', departments:['Administration'], roles:['Hospital Administrator'], securityRole:'Manager', shared:true, status:'Active'},
+  {id:'FB-20002', first:'Ville Platte', last:'PA', email:'villeplattepa@freedombehavioral.com', facility:'Freedom Ville Platte', departments:['Administration'], roles:['Hospital Administrator'], securityRole:'Manager', shared:true, status:'Active'},
+  {id:'FB-20003', first:'DeQuincy', last:'PA', email:'dequincypa@freedombehavioral.com', facility:'Freedom DeQuincy', departments:['Administration'], roles:['Hospital Administrator'], securityRole:'Manager', shared:true, status:'Active'},
+  {id:'FB-20004', first:'Minden', last:'PA', email:'Mindenpa@freedombehavioral.com', facility:'Freedom Minden', departments:['Administration'], roles:['Hospital Administrator'], securityRole:'Manager', shared:true, status:'Active'},
+  {id:'FB-20005', first:'Bastrop', last:'Administrator', email:'bastropadmin@freedombehavioral.com', facility:'Freedom Bastrop', departments:['Administration'], roles:['Hospital Administrator'], securityRole:'Manager', shared:true, status:'Active'},
+  {id:'FB-20006', first:'Bunkie', last:'Administrator', email:'bunkieadmin@freedombehavioral.com', facility:'Freedom Bunkie', departments:['Administration'], roles:['Hospital Administrator'], securityRole:'Manager', shared:true, status:'Active'},
+  {id:'FB-20007', first:'Ferriday', last:'Administrator', email:'ferridayadmin@freedombehavioral.com', facility:'Freedom Ferriday', departments:['Administration'], roles:['Hospital Administrator'], securityRole:'Manager', shared:true, status:'Active'},
+  {id:'FB-20008', first:'Magnolia', last:'Administrator', email:'magnoliaadmin@freedombehavioral.com', facility:'Freedom Magnolia', departments:['Administration'], roles:['Hospital Administrator'], securityRole:'Manager', shared:true, status:'Active'},
+  {id:'FB-20009', first:'Greenville', last:'Administrator', email:'greenvilleadmin@freedombehavioral.com', facility:'Freedom Greenville', departments:['Administration'], roles:['Hospital Administrator'], securityRole:'Manager', shared:true, status:'Active'},
+  {id:'FB-20010', first:'Monroe', last:'Administrator', email:'monroeadmin@freedombehavioral.com', facility:'Freedom Monroe', departments:['Administration'], roles:['Hospital Administrator'], securityRole:'Manager', shared:true, status:'Active'},
+  {id:'FB-20011', first:'West Monroe', last:'Administrator', email:'westmonroeadmin@freedombehavioral.com', facility:'Freedom West Monroe', departments:['Administration'], roles:['Hospital Administrator'], securityRole:'Manager', shared:true, status:'Active'},
+  {id:'FB-20012', first:'Leesville', last:'Administrator', email:'leesvilleadmin@freedombehavioral.com', facility:'Freedom Leesville', departments:['Administration'], roles:['Hospital Administrator'], securityRole:'Manager', shared:true, status:'Active'},
+  {id:'FB-20013', first:'Lake Charles', last:'Administrator', email:'lakecharlesadmin@freedombehavioral.com', facility:'Freedom Lake Charles', departments:['Administration'], roles:['Hospital Administrator'], securityRole:'Manager', shared:true, status:'Active'},
   {id:'FB-10482', first:'Morgan', last:'Reed', email:'morgan.reed@freedombehavioral.com', facility:'Freedom Lake Charles', departments:['Nursing'], roles:['Registered Nurse'], securityRole:'Employee', status:'Active'},
   {id:'FB-10614', first:'Taylor', last:'Brooks', email:'taylor.brooks@freedombehavioral.com', facility:'Freedom Monroe', departments:['Nursing'], roles:['Behavioral Health Technician / MHT'], securityRole:'Employee', status:'Active'},
   {id:'FB-10133', first:'Casey', last:'Martin', email:'casey.martin@freedombehavioral.com', facility:'Freedom DeQuincy', departments:['Quality / Performance Improvement','Compliance / Risk'], roles:['Quality / Performance Improvement Director'], securityRole:'Policy Owner', status:'Active'},
@@ -1629,7 +1645,8 @@ const isAdminRole = name => !!SECURITY_ROLES.find(r => r.name === name && r.admi
 /* Freedom signs in with Microsoft 365, so an account is only usable if its
    address lives in the tenant. Anything else is a directory record without
    a way in — worth showing rather than hiding. */
-const TENANT_DOMAIN = 'freedomhc.com';
+const TENANT_DOMAINS = ['freedomhc.com', 'freedombehavioral.com'];
+const TENANT_DOMAIN = TENANT_DOMAINS[0];
 const ENTRA_GROUPS = {
   'System Administrator': 'FPC-System-Admins',
   'Policy Administrator': 'FPC-Policy-Admins',
@@ -1639,10 +1656,10 @@ const ENTRA_GROUPS = {
   'Employee': '(authenticated, no group)',
   'Survey / Read-Only': 'FPC-Survey-ReadOnly'
 };
-const inTenant = email => String(email).toLowerCase().endsWith('@' + TENANT_DOMAIN);
+const inTenant = email => TENANT_DOMAINS.some(d => String(email).toLowerCase().endsWith('@' + d));
 const signInChip = e => inTenant(e.email)
-  ? `<span class="pill" title="Signs in with Microsoft 365 as ${esc(e.email)}">Microsoft 365</span>`
-  : `<span class="status pending" title="Not in the ${TENANT_DOMAIN} tenant — this account cannot sign in">No M365 account</span>`;
+  ? `<span class="pill" title="Signs in with Microsoft 365 as ${esc(e.email)}">Microsoft 365</span>${e.shared ? '<div class="subtle">shared mailbox</div>' : ''}`
+  : `<span class="status pending" title="Not in the Freedom tenant — this account cannot sign in">No M365 account</span>`;
 const securityRoleOf = e => e.securityRole || 'Employee';
 let editingUserId = null;
 
@@ -1673,10 +1690,10 @@ function renderSignInBox() {
   const role = byId('userSecurityRole').value;
   const group = ENTRA_GROUPS[role] || '';
   host.innerHTML = !email
-    ? `<div class="rulebox" style="margin:0">Sign-in is Microsoft 365 — enter a <b>@${TENANT_DOMAIN}</b> address to link this account to the tenant.</div>`
+    ? `<div class="rulebox" style="margin:0">Sign-in is Microsoft 365 — enter a ${TENANT_DOMAINS.map(d => '<b>@' + d + '</b>').join(' or ')} address to link this account to the tenant.</div>`
     : inTenant(email)
       ? `<div class="rulebox" style="margin:0"><b>Microsoft 365 sign-in</b> · UPN <b>${esc(email)}</b> · Entra group <b>${esc(group)}</b>. The Entra object id is captured on first sign-in and becomes the permanent link.</div>`
-      : `<div class="rulebox" style="margin:0;border-color:#f3d38a;background:#fff9e8;color:#725400"><b>${esc(email)}</b> is outside the ${TENANT_DOMAIN} tenant, so this person cannot sign in. Keep it as a directory record, or use a Microsoft 365 address — external reviewers should get an Entra guest account in <b>FPC-Survey-ReadOnly</b>.</div>`;
+      : `<div class="rulebox" style="margin:0;border-color:#f3d38a;background:#fff9e8;color:#725400"><b>${esc(email)}</b> is outside the Freedom tenant (${TENANT_DOMAINS.join(', ')}), so this person cannot sign in. Keep it as a directory record, or use a Microsoft 365 address — external reviewers should get an Entra guest account in <b>FPC-Survey-ReadOnly</b>.</div>`;
 }
 
 function renderUserPreview() {
@@ -1815,7 +1832,9 @@ function renderUsers() {
   byId('kpiUsers').textContent = EMPLOYEES.length;
   byId('kpiUsersActive').textContent = active.length;
   byId('kpiAdmins').textContent = activeAdmins().length;
-  byId('kpiUserFacilities').textContent = new Set(active.map(e => e.facility)).size;
+  // Enterprise / Corporate is not a facility — count only the hospitals
+  byId('kpiUserFacilities').textContent = new Set(active.map(e => e.facility).filter(f => f !== 'Enterprise / Corporate')).size;
+  byId('kpiFacilityTotal').textContent = FORM_FACILITIES.filter(f => f !== 'Enterprise / Corporate').length;
   byId('kpiUserAssignments').textContent = ASSIGNMENTS.length;
   host.innerHTML = rows.length ? rows.map(e => {
     const role = securityRoleOf(e);

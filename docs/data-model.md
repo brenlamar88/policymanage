@@ -112,6 +112,14 @@ Cost shape: dominated by storage (tens of GB) and egress, not compute.
 
 **Freedom signs in with Microsoft 365.** No passwords are stored in this system.
 
+- **Two mail domains, one tenant.** Corporate accounts are `@freedomhc.com` and facility
+  accounts are `@freedombehavioral.com`; both are treated as valid sign-in domains. Confirm
+  both are verified domains in the same Entra tenant — if they are separate tenants, the
+  facility accounts need guest access or their own app registration.
+- **Shared facility mailboxes.** The per-site accounts (`monroeadmin@`, `dequincypa@`, …)
+  are role mailboxes, not people. They are fine for administering a site, but an
+  acknowledgement recorded against a shared mailbox proves only that *someone* with the
+  password read the policy. Where acknowledgement is the evidence, assign named accounts.
 - **Entra ID (Azure AD) as the identity provider**, wired through Supabase Auth's Azure
   provider. Staff hit "Sign in with Microsoft" and land in the portal; MFA, conditional
   access, and password policy stay where IT already manages them.

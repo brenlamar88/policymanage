@@ -168,6 +168,11 @@
 .rolecard b{font-size:12px;color:var(--navy)}
 .rolecard p{margin:4px 0 0;font-size:11px;color:var(--muted)}
 .rolecard .lvl{float:right}
+body[data-access="staff"] .admin-only{display:none !important}
+.viewas{display:flex;align-items:center;gap:6px;margin-left:14px;padding-left:14px;border-left:1px solid var(--line)}
+.viewas label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:800}
+.viewas select{border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:#fff;font-size:12px}
+.accessnote{background:#f1f5f9;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:12px;color:var(--muted);margin-bottom:14px}
 .adminbadge{background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;font-size:10px;font-weight:800;padding:3px 6px;border-radius:6px}
 @media(max-width:1100px){.rolegrid{grid-template-columns:1fr}}
 .versionrow:last-child{border-bottom:0}
@@ -203,16 +208,18 @@
 <div class="navlabel">Command Center</div>
 <button class="navbtn active" data-view="dashboard" onclick="showView('dashboard','Enterprise Policy Dashboard')">⌂ <span>Dashboard</span></button>
 <button class="navbtn" data-view="library" onclick="showView('library','Policy &amp; Form Library')">▤ <span>Policy &amp; Form Library</span><span class="count" id="libraryNavCount">0</span></button>
-<button class="navbtn" data-view="forms" onclick="showView('forms','Forms Management Center')">▧ <span>Forms Management</span><span class="count" id="formNavCount">0</span></button>
+<button class="navbtn admin-only" data-view="forms" onclick="showView('forms','Forms Management Center')">▧ <span>Forms Management</span><span class="count" id="formNavCount">0</span></button>
 <button class="navbtn" data-view="toc" onclick="showView('toc','Enterprise Table of Contents')">☰ <span>Table of Contents</span><span class="count" id="tocNavCount">0</span></button>
-<button class="navbtn" data-view="assign" onclick="showView('assign','Policy Assignment Center')">✓ <span>Assign Policies</span><span class="count" id="assignNavCount">0</span></button>
-<div class="navlabel">Security &amp; Administration</div>
-<button class="navbtn" data-view="users" onclick="showView('users','User Management')">♟ <span>User Management</span><span class="count" id="userNavCount">0</span></button>
+<button class="navbtn admin-only" data-view="assign" onclick="showView('assign','Policy Assignment Center')">✓ <span>Assign Policies</span><span class="count" id="assignNavCount">0</span></button>
+<div class="navlabel admin-only">Security &amp; Administration</div>
+<button class="navbtn admin-only" data-view="users" onclick="showView('users','User Management')">♟ <span>User Management</span><span class="count" id="userNavCount">0</span></button>
 <div class="navlabel">Quick TOC — <span id="quickTocCount">0</span> Sections</div><div id="quickToc" class="quicktoc"></div>
 </aside>
 <main class="main">
-<header class="topbar"><div><div class="subtle">Freedom Behavioral · Policy Governance</div><h2 id="pageTitle">Enterprise Policy Dashboard</h2></div><div class="spacer"></div><button class="iconbtn" onclick="focusSearch()" title="Search the policy library">⌕</button><div class="user"><div class="avatar" id="meInitials">--</div><span><b id="meName">—</b><div class="subtle" id="meRole"></div></span></div></header>
+<header class="topbar"><div><div class="subtle">Freedom Behavioral · Policy Governance</div><h2 id="pageTitle">Enterprise Policy Dashboard</h2></div><div class="spacer"></div><button class="iconbtn" onclick="focusSearch()" title="Search the policy library">⌕</button><div class="user"><div class="avatar" id="meInitials">--</div><span><b id="meName">—</b><div class="subtle" id="meRole"></div></span></div>
+<div class="viewas"><label for="previewRole">Preview as</label><select id="previewRole" onchange="setPreviewRole(this.value)"></select></div></header>
 <div class="content">
+<div id="accessNote" class="accessnote" style="display:none"></div>
 
 <section id="dashboard" class="view active">
 <div class="hero"><div><h3>Freedom Policy Governance Command Center</h3><p>Controlled enterprise policies, associated forms, risk classification, and the digital table of contents — organized around the Freedom operating model.</p></div><div class="hero-actions"><button class="btn white touchbtn" onclick="showView('library','Policy &amp; Form Library')">Open Policy Library</button><button class="btn primary touchbtn" onclick="showView('toc','Enterprise Table of Contents')">Table of Contents</button></div></div>
@@ -239,13 +246,13 @@
 <select id="sectionFilter" class="select" onchange="renderPolicyTable()"><option value="">All TOC Sections</option></select>
 <select id="riskFilter" class="select" onchange="renderPolicyTable()"><option value="">All Risk Levels</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select>
 <button class="btn outline touchbtn" onclick="resetLibraryFilters()">Reset Filters</button>
-<button class="btn primary touchbtn" onclick="openUpload()">⇧ Bulk Upload</button>
+<button class="btn primary touchbtn admin-only" onclick="openUpload()">⇧ Bulk Upload</button>
 </div>
 <div class="tablewrap"><table class="table"><thead><tr><th>Risk</th><th>Policy</th><th>Regulatory Driver</th><th>Associated Forms</th><th>Control Status</th><th></th></tr></thead><tbody id="policyRows"></tbody></table></div>
 <div class="footer-note">Prototype displays the first 150 matching records for performance; production would use server-side pagination, full-text search, and document indexing.</div></div></section>
 
 <section id="forms" class="view">
-<div class="hero"><div><h3>Freedom Forms Management Center</h3><p>Control enterprise forms, link one form to many policies, and assign access or required use by hospital, department, and role.</p></div><div class="hero-actions"><button class="btn white touchbtn" onclick="byId('formFile').click()">+ Upload Form</button><button class="btn primary touchbtn" onclick="openUpload()">⇧ Bulk Upload</button></div></div>
+<div class="hero"><div><h3>Freedom Forms Management Center</h3><p>Control enterprise forms, link one form to many policies, and assign access or required use by hospital, department, and role.</p></div><div class="hero-actions"><button class="btn white touchbtn" onclick="byId('formFile').click()">+ Upload Form</button><button class="btn primary touchbtn admin-only" onclick="openUpload()">⇧ Bulk Upload</button></div></div>
 <div class="formmanage-grid">
 
 <div class="card panel"><div class="panelhead"><div><h4 id="formEditorTitle">Create / Revise Controlled Form</h4><div class="subtle">One controlled form can support many policies and audiences.</div></div><span class="pill">Admin Only</span></div>

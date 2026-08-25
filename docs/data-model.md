@@ -90,6 +90,12 @@ Cost shape: dominated by storage (tens of GB) and egress, not compute.
 
 ## 5. Security model
 
+- **Portal navigation is limited by security role.** Staff reach only Dashboard, Policy &
+  Form Library, and Table of Contents. Forms Management, Assign Policies, and User
+  Management are administrator-only, and so is every mutating action (upload, publish,
+  assignment rules, directory changes). The UI hides them and each action re-checks the
+  role, because hiding a button is presentation, not access control — RLS below is what
+  actually enforces it.
 - **RLS on every table.** Staff read policies scoped to their facility and assignments
   scoped to themselves; Policy Admin and Compliance roles read enterprise-wide. The
   ingestion worker uses the service role and is the only writer to `storage_object`.

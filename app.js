@@ -117,7 +117,49 @@ const riskBadge = n => `<span class="riskbadge r${n}" title="Enterprise Risk Lev
 const formsForPolicy = num => CONTROLLED_FORMS.filter(f => (f.policies || []).includes(String(num)));
 let currentSection = '';
 
+/* ------------------------------------------------------------- access
+   Staff see the three reading views. Everything that changes controlled
+   content — forms, assignment rules, the directory, uploads, approvals —
+   is administrator-only. */
+const STAFF_VIEWS = ['dashboard', 'library', 'toc'];
+let previewRole = null;
+
+const effectiveRole = () => previewRole || (currentUser() ? securityRoleOf(currentUser()) : 'Employee');
+const isAdmin = () => isAdminRole(effectiveRole());
+const canSee = view => isAdmin() || STAFF_VIEWS.includes(view);
+
+function setPreviewRole(role) {
+  previewRole = role === '__self__' ? null : role;
+  applyAccess();
+  const active = document.querySelector('.view.active');
+  if (active && !canSee(active.id)) showView('dashboard', 'Enterprise Policy Dashboard');
+  else refreshAccessDependentViews();
+  toast(`Previewing the portal as ${effectiveRole()}`);
+}
+
+function applyAccess() {
+  document.body.dataset.access = isAdmin() ? 'admin' : 'staff';
+  const note = byId('accessNote');
+  if (note) {
+    const previewing = previewRole && previewRole !== securityRoleOf(currentUser());
+    note.style.display = previewing ? '' : 'none';
+    note.innerHTML = previewing
+      ? `Previewing as <b>${esc(effectiveRole())}</b> — ${isAdmin() ? 'administrator tools are visible.' : 'only Dashboard, Policy &amp; Form Library, and Table of Contents are available.'} <button class="btn outline" style="padding:4px 9px;font-size:11px;margin-left:6px" onclick="byId('previewRole').value='__self__';setPreviewRole('__self__')">Back to my role</button>`
+      : '';
+  }
+}
+
+function refreshAccessDependentViews() {
+  renderPolicyTable();
+  if (currentSection) renderTocPolicyList();
+}
+
 function showView(id, label) {
+  if (!canSee(id)) {
+    toast('That area is limited to administrators');
+    id = 'dashboard';
+    label = 'Enterprise Policy Dashboard';
+  }
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   byId(id).classList.add('active');
   document.querySelectorAll('.navbtn[data-view]').forEach(b => b.classList.remove('active'));
@@ -286,7 +328,7 @@ function selectTocPolicy(idx) {
   const uploadedIds = new Set(uploaded.map(f => String(f.id)));
   const trackerOnly = (p.forms || []).map(String).filter(id => !uploadedIds.has(id));
   const cards = [];
-  uploaded.forEach(f => cards.push(`<div class="form-info-card"><div class="form-source">Controlled Form</div><h6>${esc(f.id)} · ${esc(f.name)}</h6><div class="subtle">${esc(f.version)} · ${esc(f.file)} · Owner: ${esc(f.owner)}</div><div class="form-info-meta"><span class="pill">Risk ${f.risk}</span><span class="pill">${f.roles.length} roles</span><span class="pill">${f.departments.length} departments</span><span class="pill">${f.facilities.length} facilities</span></div><div class="subtle"><b>Roles:</b> ${f.roles.length ? f.roles.map(esc).join(', ') : 'None assigned'}</div><div class="subtle" style="margin-top:4px"><b>Departments:</b> ${f.departments.length ? f.departments.map(esc).join(', ') : 'None assigned'}</div><div class="subtle" style="margin-top:4px"><b>Notification:</b> ${esc(f.notify)}</div><div style="display:flex;gap:7px;justify-content:flex-end;margin-top:9px"><button class="btn outline touchbtn" onclick="manageForm('${esc(f.id)}')">Manage Form</button><button class="btn primary touchbtn" onclick="openForm('${esc(f.id)}')">Open Form</button></div></div>`));
+  uploaded.forEach(f => cards.push(`<div class="form-info-card"><div class="form-source">Controlled Form</div><h6>${esc(f.id)} · ${esc(f.name)}</h6><div class="subtle">${esc(f.version)} · ${esc(f.file)} · Owner: ${esc(f.owner)}</div><div class="form-info-meta"><span class="pill">Risk ${f.risk}</span><span class="pill">${f.roles.length} roles</span><span class="pill">${f.departments.length} departments</span><span class="pill">${f.facilities.length} facilities</span></div><div class="subtle"><b>Roles:</b> ${f.roles.length ? f.roles.map(esc).join(', ') : 'None assigned'}</div><div class="subtle" style="margin-top:4px"><b>Departments:</b> ${f.departments.length ? f.departments.map(esc).join(', ') : 'None assigned'}</div><div class="subtle" style="margin-top:4px"><b>Notification:</b> ${esc(f.notify)}</div><div style="display:flex;gap:7px;justify-content:flex-end;margin-top:9px">${isAdmin() ? `<button class="btn outline touchbtn" onclick="manageForm('${esc(f.id)}')">Manage Form</button>` : ''}<button class="btn primary touchbtn" onclick="openForm('${esc(f.id)}')">Open Form</button></div></div>`));
   trackerOnly.forEach(id => cards.push(`<div class="form-info-card"><div class="form-source">Tracker-Linked Form</div><h6>Form ${esc(id)}</h6><div class="subtle">Referenced by the enterprise tracker. Version, owner, roles, departments, facilities and revision history are managed once the form is brought under control.</div></div>`));
   byId('tocPolicyInfo').innerHTML = `<div style="display:flex;justify-content:space-between;gap:12px;align-items:start"><div><div class="subtle">${esc(p.section)}</div><h3 style="margin:4px 0 8px">${esc(p.policy)} · ${esc(p.title)}</h3></div>${riskBadge(p.risk)}</div>
 <div class="risk-legend"><span class="r${p.risk}">Risk ${p.risk}: ${esc(p.basis || 'Enterprise risk classification')}</span><span style="background:#175c92">${esc(p.regulatory || 'Corporate')}</span></div>
@@ -334,6 +376,9 @@ function init() {
   renderUsers();
   renderUserPreview();
   renderSignedInUser();
+  byId('previewRole').innerHTML = `<option value="__self__">My role — ${esc(securityRoleOf(currentUser()))}</option>` +
+    SECURITY_ROLES.map(r => `<option value="${esc(r.name)}">${esc(r.name)}</option>`).join('');
+  applyAccess();
 }
 document.addEventListener('DOMContentLoaded', init);
 
@@ -410,6 +455,7 @@ function addUploadedVersion(idx, row) {
 /* Approval is the deliberate step: the pending version takes force and the
    one it replaces becomes superseded. */
 function publishVersion(idx, versionId) {
+  if (!isAdmin()) { toast('Publishing a controlled version is limited to administrators'); return; }
   const list = versionsFor(idx);
   const v = list.find(x => x.id === versionId);
   if (!v || v.status !== 'pending') return;
@@ -445,6 +491,7 @@ function renderUploadRules() {
 }
 
 function openUpload() {
+  if (!isAdmin()) { toast('Uploading controlled documents is limited to administrators'); return; }
   byId('uploadModal').classList.add('show');
   renderUploadRules();
   fillMulti('formOwnerDept', FORM_DEPTS);
@@ -872,7 +919,7 @@ function renderVersionHistory(idx) {
       return `<div class="vhrow ${v.status === 'published' ? 'current' : ''}">
 <div class="vhlabel"><b>${esc(v.label)}</b><span class="status ${cls}">${label}</span></div>
 <div><div class="vhmeta">${esc(when)} · ${esc(v.by)}</div>${v.filename ? `<div class="vhmeta">${esc(v.filename)} · ${esc(fmtSize(v.size))}</div>` : ''}<div class="vhmeta">${esc(v.note)}</div>${v.hash ? `<div class="vhhash">sha256 ${esc(v.hash.slice(0, 40))}…</div>` : ''}</div>
-<div class="vhactions"><button class="btn outline" onclick="openVersionDoc(${idx}, ${v.id})">Open</button>${v.status === 'pending' ? `<button class="btn primary" onclick="publishVersion(${idx}, ${v.id})">Approve &amp; Publish</button>` : ''}</div></div>`;
+<div class="vhactions"><button class="btn outline" onclick="openVersionDoc(${idx}, ${v.id})">Open</button>${v.status === 'pending' && isAdmin() ? `<button class="btn primary" onclick="publishVersion(${idx}, ${v.id})">Approve &amp; Publish</button>` : ''}</div></div>`;
     }).join('');
 }
 

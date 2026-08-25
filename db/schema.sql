@@ -57,6 +57,12 @@ create table app_user (
   primary_facility_id uuid references facility(id),
   status              text not null default 'active'
                        check (status in ('active','inactive','terminated')),
+  -- what the person can do in this system; sourced from Entra group membership
+  security_role       text not null default 'Employee'
+                       check (security_role in ('System Administrator','Policy Administrator',
+                                                'Policy Owner','Approver','Manager','Employee',
+                                                'Survey / Read-Only')),
+  is_shared_mailbox   boolean not null default false,
   hired_on            date,
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now()
@@ -210,6 +216,16 @@ create table policy_form_link (
   primary key (policy_id, form_id)
 );
 
+-- The tracker names forms by number long before the controlled document is
+-- uploaded. Expected links live here; policy_form_link is for real forms.
+create table policy_expected_form (
+  policy_id    uuid not null references policy(id) on delete cascade,
+  form_number  text not null,
+  source       text not null default 'tracker',
+  created_at   timestamptz not null default now(),
+  primary key (policy_id, form_number)
+);
+
 -- ------------------------------------------------------- attachments / aids
 
 create table document_attachment (
@@ -359,5 +375,7 @@ create index audit_actor_idx           on audit_event (actor_user_id, occurred_a
 
 create index app_user_entra_idx        on app_user (entra_object_id);
 create index app_user_upn_idx          on app_user (upn);
+create index expected_form_number_idx  on policy_expected_form (form_number);
+create index app_user_role_idx         on app_user (security_role) where status = 'active';
 create index user_role_role_idx        on user_role (role_id);
 create index user_dept_dept_idx        on user_department (department_id);

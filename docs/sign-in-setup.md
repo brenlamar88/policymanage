@@ -30,16 +30,31 @@ real URL. Roughly half the work belongs to Freedom IT, half to the build.
 7. **Resolve the shared mailboxes** — see the blocker below.
 8. Confirm Conditional Access and MFA policies apply to the new app as intended.
 
-## B. Build — Supabase (about an hour, once A is done)
+## B. Build — Supabase
 
-1. Create the project (`us-east-2`, alongside `freedomrap-staging`).
-2. Authentication → Providers → **Azure**: enable, paste client ID and secret, set
+**Project:** `yphlmchwdabdbpmgpznd` — `https://yphlmchwdabdbpmgpznd.supabase.co`
+
+**B0. Load the database (do this now — it does not wait on IT).** In the Supabase
+SQL editor, run these three files in order. All three are idempotent, and all three
+have been applied to a clean PostgreSQL 16 as a check.
+
+| Order | File | What it does |
+|---|---|---|
+| 1 | [`db/schema.sql`](../db/schema.sql) | 22 tables, indexes, audit partitions |
+| 2 | [`db/seed.sql`](../db/seed.sql) | 17 sections, 13 facilities, 26 departments, 44 hospital roles, 379 policies, 166 expected form links, 29 users |
+| 3 | [`db/rls.sql`](../db/rls.sql) | Row Level Security — 41 policies |
+
+Regenerate the seed after changing the prototype's data or the tracker mapping:
+`node scripts/build-seed-sql.js`.
+
+Then create four private storage buckets: `policy-source`, `policy-rendered`,
+`form-template`, `quarantine`.
+
+1. Authentication → Providers → **Azure**: enable, paste client ID and secret, set
    Azure Tenant URL to `https://login.microsoftonline.com/<tenant-id>`.
 3. Set Site URL and the redirect allow-list to the deployed app URL.
-4. Apply [`db/schema.sql`](../db/schema.sql), then seed sections, policies, facilities,
-   departments, roles, and the `app_user` rows for people already known.
-5. Turn on RLS policies (see [`data-model.md`](data-model.md) §5).
-6. Add the first-sign-in hook: create or link the `app_user` row from the token claims
+   The project URL and publishable key are already in [`config.js`](../config.js).
+4. Add the first-sign-in hook: create or link the `app_user` row from the token claims
    (`entra_object_id`, `upn`, display name), defaulting to the Employee role.
 
 ## C. Build — the app itself

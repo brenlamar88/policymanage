@@ -119,12 +119,15 @@ function mappedPoliciesFor(formNumber) {
 
 let dbReady = false;
 
+/* Working normally is silent — the chip appears only when saves are not
+   reaching the database, which is the case anyone needs to see. */
 function setDbStatus(state, text, title) {
   const el = byId('dbStatus');
   if (!el) return;
   el.className = `dbstatus ${state}`;
   el.textContent = text;
   el.title = title || '';
+  el.style.display = state === 'off' ? '' : 'none';
 }
 
 async function connectDatabase() {

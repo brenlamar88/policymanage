@@ -34,10 +34,10 @@ npx http-server .
 ## Saving
 
 The app loads its working set from Supabase at startup and writes changes back —
-forms, users, and uploaded documents. The chip in the top bar says which mode you are in:
-**Saving to Supabase**, or **Not saving** when the database is unreachable, in which case
-the app still runs on seeded data and every save warns that it is session-only. A failed
-write is reported in the toast and on the chip; it is never swallowed.
+forms, users, and uploaded documents. Working normally is silent. A **Not saving** chip
+appears in the top bar only when the database is unreachable or a write fails; hover it for
+the reason. In that state the app still runs on seeded data and every save warns that it is
+session-only. A failed write is never swallowed.
 
 Serve the page over http (`npx serve .`) rather than opening the file directly — a
 `file://` origin can be rejected by the API.

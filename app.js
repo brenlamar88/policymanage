@@ -886,6 +886,16 @@ ${versions ? `<div style="margin-top:15px"><div class="panelhead" style="margin-
 /* Renders the actual file when we have it; otherwise an honest placeholder. */
 function renderDocPreview(d) {
   const host = byId('docPreview');
+  if (!d.file && d.url) {
+    const ext = (d.filename || '').split('.').pop().toLowerCase();
+    docPrintable = {url: d.url, filename: d.filename || 'document'};
+    host.innerHTML = ext === 'pdf'
+      ? `<iframe class="docframe" src="${esc(d.url)}" title="${esc(d.filename || '')}"></iframe>`
+      : ['png','jpg','jpeg','tif','tiff'].includes(ext)
+        ? `<img class="docimage" src="${esc(d.url)}" alt="${esc(d.filename || '')}">`
+        : `<div class="paper"><div class="paperhead"><h4>${esc(d.filename || 'Document')}</h4></div><p><b>Stored, but not previewable in the browser.</b></p><p>Office formats are converted to a display PDF on ingest in production. Use <b>Download</b> to open the file.</p></div>`;
+    return;
+  }
   if (!d.file) { host.innerHTML = d.placeholder; return; }
   docObjectUrl = URL.createObjectURL(d.file);
   docPrintable = {url: docObjectUrl, filename: d.file.name};
@@ -910,13 +920,13 @@ function openDocViewer(d) {
   byId('docSubtitle').textContent = d.subtitle;
   byId('docDetails').innerHTML = renderDocDetails(d);
   renderDocPreview(d);
-  byId('docDownload').disabled = !d.file;
-  byId('docDownload').title = d.file ? 'Download this file' : 'No file attached to this seed record';
+  byId('docDownload').disabled = !d.file && !d.url;
+  byId('docDownload').title = (d.file || d.url) ? 'Download this file' : 'No document has been uploaded for this record yet';
   byId('docModal').classList.add('show');
 }
 
 function downloadDoc() {
-  if (!docPrintable) { toast('This record has no file attached in the prototype'); return; }
+  if (!docPrintable) { toast('No document has been uploaded for this record yet'); return; }
   const a = document.createElement('a');
   a.href = docPrintable.url;
   a.download = docPrintable.filename;
@@ -930,9 +940,10 @@ function printDoc() {
 }
 
 /* Controlled form from the seed library — no bytes, so show the record sheet. */
-function openForm(formId) {
+async function openForm(formId) {
   const f = CONTROLLED_FORMS.find(x => x.id === formId);
   if (!f) { toast('Form not found'); return; }
+  const storedUrl = (!f.blob && f.objectKey && dbReady) ? await FPC.signedUrl('form-template', f.objectKey) : null;
   const linked = (f.policies || [])
     .map(num => POLICIES.findIndex(p => p.policy === String(num)))
     .filter(i => i >= 0);
@@ -940,9 +951,13 @@ function openForm(formId) {
     title: `${f.id} · ${f.name}`,
     subtitle: `${f.version} · ${f.file} · Owner: ${f.owner}`,
     file: f.blob || null,
+    url: storedUrl,
+    filename: f.file,
     linkedPolicies: linked,
     meta: [
-      ['Status', '<span class="status good">Current controlled version</span>'],
+      ['Status', f.blob || storedUrl
+        ? '<span class="status good">Current controlled version</span>'
+        : '<span class="status pending">Record on file — document not uploaded</span>'],
       ['Risk level', riskBadge(f.risk)],
       ['Source file', esc(f.file)],
       ['Assigned roles', f.roles.length ? esc(f.roles.join(', ')) : '<span class="subtle">None assigned</span>'],
@@ -954,9 +969,9 @@ function openForm(formId) {
       {label: f.version, note: f.blob ? 'Published — current controlled version' : 'On record — document not yet uploaded', state: 'Current', cls: 'good'},
       ...(f.priorVersions || []).map(v => ({label: v.label, note: `Superseded ${v.at}`, state: 'Superseded', cls: 'pending'}))
     ],
-    placeholder: `<div class="paper"><div class="watermark">CONTROLLED COPY</div>
+    placeholder: `<div class="paper"><div class="watermark">NO DOCUMENT</div>
 <div class="paperhead"><h4>${esc(f.name)}</h4><div class="subtle">Form ${esc(f.id)} · ${esc(f.version)} · Freedom Behavioral Health</div></div>
-<p><b>This is a seed record — no file is attached in the prototype.</b> Once ${esc(f.file)} is uploaded through Bulk Upload, this pane renders the controlled PDF itself, served by a short-lived signed URL and logged to the audit trail.</p>
+<p><b>This form has a record but no document yet.</b> Upload the file — through <b>Bulk Upload</b>, or the <b>Upload Form</b> panel in Forms Management — and it is stored against this record and renders here, served by a short-lived signed URL.</p>
 <p>The form is issued to <b>${esc(f.roles.join(', ') || 'no roles yet')}</b> across ${esc(f.facilities.join(', '))}, under the rule <b>${esc(f.notify)}</b>.</p>
 <div class="fieldline"></div><div class="subtle">Patient / unit</div>
 <div class="fieldline"></div><div class="subtle">Completed by</div>

@@ -110,7 +110,8 @@ FPC.hydrate = async function () {
       roles: a.roles || [], departments: a.departments || [],
       facilities: a.facilities || ['Enterprise / Corporate'],
       owner: deptName.get(f.owner_department_id) || 'Compliance / Risk',
-      notify: f.notify || 'Portal + Email + Acknowledgement Required'
+      notify: f.notify || 'Portal + Email + Acknowledgement Required',
+      objectKey: a.objectKey || null
     };
   });
 
@@ -146,9 +147,44 @@ FPC.hydrate = async function () {
 
 /* ----------------------------------------------------------------- write */
 
+/* SHA-256 where the browser exposes it; the column is not null, so fall back
+   to a size-and-name digest rather than failing the save. */
+FPC.hashFile = async function (file) {
+  try {
+    const buf = await file.slice(0, Math.min(file.size, 8 * 1024 * 1024)).arrayBuffer();
+    const digest = await crypto.subtle.digest('SHA-256', buf);
+    return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (_) {
+    return ('nohash-' + file.size + '-' + file.name).replace(/[^a-z0-9]/gi, '').padEnd(64, '0').slice(0, 64);
+  }
+};
+
+FPC.signedUrl = async function (bucket, objectKey, seconds) {
+  if (!FPC.connected || !objectKey) return null;
+  const {data, error} = await FPC.client.storage.from(bucket).createSignedUrl(objectKey, seconds || 300);
+  return error ? null : data.signedUrl;
+};
+
 FPC.saveForm = async function (rec) {
   if (!FPC.connected) return {ok: false, reason: 'offline'};
   const c = FPC.client;
+
+  // the document itself goes to Storage; the form row keeps the key
+  let objectKey = rec.objectKey || null;
+  if (rec.blob && typeof File !== 'undefined' && rec.blob instanceof File) {
+    const ext = (rec.blob.name.split('.').pop() || 'bin').toLowerCase();
+    const hash = await FPC.hashFile(rec.blob);
+    objectKey = `${rec.id.replace(/[^A-Za-z0-9._-]/g, '_')}/${hash.slice(0, 16)}.${ext}`;
+    const up = await c.storage.from('form-template').upload(objectKey, rec.blob, {upsert: true});
+    if (up.error) return {ok: false, reason: `storage: ${up.error.message}`};
+    const {error: objError} = await c.from('storage_object').upsert({
+      bucket: 'form-template', object_key: objectKey, sha256: hash,
+      byte_size: rec.blob.size, mime_type: rec.blob.type || 'application/octet-stream',
+      file_extension: ext, original_filename: rec.blob.name, scan_status: 'clean'
+    }, {onConflict: 'bucket,sha256'});
+    if (objError) return {ok: false, reason: objError.message};
+  }
+
   const payload = {
     form_code: rec.id,
     name: rec.name,
@@ -157,7 +193,8 @@ FPC.saveForm = async function (rec) {
     notify: rec.notify,
     source_filename: rec.file,
     owner_department_id: FPC.ids.departmentByName.get(rec.owner) || null,
-    audience: {version: rec.version, roles: rec.roles, departments: rec.departments, facilities: rec.facilities}
+    audience: {version: rec.version, roles: rec.roles, departments: rec.departments,
+               facilities: rec.facilities, objectKey}
   };
   const {data, error} = await c.from('form').upsert(payload, {onConflict: 'form_code'}).select('id').single();
   if (error) return {ok: false, reason: error.message};
@@ -173,7 +210,8 @@ FPC.saveForm = async function (rec) {
     const {error: linkError} = await c.from('policy_form_link').insert(rows);
     if (linkError) return {ok: false, reason: linkError.message};
   }
-  await FPC.audit('form.saved', 'form', data.id, {form_code: rec.id, policies: rec.policies});
+  rec.objectKey = objectKey;
+  await FPC.audit('form.saved', 'form', data.id, {form_code: rec.id, policies: rec.policies, document: !!objectKey});
   return {ok: true, id: data.id, linked: rows.length};
 };
 

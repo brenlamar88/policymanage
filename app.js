@@ -19,6 +19,97 @@ const FORM_DEPTS = ["Executive Leadership","Administration","Nursing","Medical S
 
 const FORM_FACILITIES = ["Enterprise / Corporate","Freedom Bastrop","Freedom Bunkie","Freedom DeQuincy","Freedom Ferriday","Freedom Lake Charles","Freedom Leesville","Freedom Minden","Freedom Monroe","Freedom Ville Platte","Freedom Magnolia","Freedom Greenville","Freedom Plainview"];
 
+/* ============================================ tracker form-number mapping
+   POLICY_FORM_MAP (data/policy-form-map.js) is the authority on which form
+   belongs to which policy. Links are keyed by policy NUMBER and resolved
+   lazily, so a mapped policy that is not in the library yet picks up its
+   forms automatically the moment that policy record exists.
+   ======================================================================== */
+
+const FORM_TO_POLICIES = new Map();   // "00010" -> ["7017","15006"]
+const POLICY_TO_FORMS = new Map();    // "15008" -> ["00018","00134","00159"]
+const FORM_TITLES = new Map();        // "00010" -> policy title it was listed under
+const FORM_KEYS = new Map();          // normalized lookup key -> canonical form number
+
+/* Worksheet tab names in the tracker do not all match the library's TOC
+   section names. Without this, importing would split HR policies across two
+   sections. Anything not listed here is taken at face value. */
+const SECTION_ALIASES = {
+  'HUMAN RESOURCES MANAGEMENT': 'HUMAN RESOURCES',
+  'INFECTION CONTROL AND PREVENTIO': 'INFECTION CONTROL',
+  'INFECTION CONTROL AND PREVENTION': 'INFECTION CONTROL',
+  'TRANSPORTATION': 'TRANSPORTATION MANAGEMENT',
+  'DIAGNOSITC MANAGMENT': 'DIAGNOSTIC MANAGEMENT',
+  'ORGANIZATIONAL MANAGMENT': 'ORGANIZATIONAL MANAGEMENT',
+  'RESTRAINT SECLUSION': 'RESTRAINT AND SECLUSION'
+};
+const sectionForWorksheet = ws => SECTION_ALIASES[ws.toUpperCase()] || ws.toUpperCase();
+
+/* "TP 4567" and "TP4567" are the same form; bare numbers pad to 5 digits. */
+function normFormKey(token) {
+  const t = String(token).toUpperCase().replace(/[\s._-]/g, '');
+  return /^\d+$/.test(t) ? t.padStart(5, '0') : t;
+}
+
+function buildFormMapIndex() {
+  if (typeof POLICY_FORM_MAP === 'undefined') return;
+  for (const section of POLICY_FORM_MAP.sections) {
+    for (const m of section.policy_form_mappings) {
+      const pol = String(m.policy_number);
+      for (const raw of m.associated_form_numbers) {
+        const form = String(raw);
+        if (!FORM_TO_POLICIES.has(form)) FORM_TO_POLICIES.set(form, []);
+        if (!FORM_TO_POLICIES.get(form).includes(pol)) FORM_TO_POLICIES.get(form).push(pol);
+        if (!POLICY_TO_FORMS.has(pol)) POLICY_TO_FORMS.set(pol, []);
+        if (!POLICY_TO_FORMS.get(pol).includes(form)) POLICY_TO_FORMS.get(pol).push(form);
+        if (!FORM_TITLES.has(form)) FORM_TITLES.set(form, m.policy_title);
+        FORM_KEYS.set(normFormKey(form), form);
+      }
+    }
+  }
+}
+
+/* Every policy carries the form numbers the tracker expects, so the library
+   and TOC show "expected but not yet uploaded" before any file arrives. */
+function applyMappingToPolicies() {
+  POLICIES.forEach(p => {
+    const mapped = POLICY_TO_FORMS.get(String(p.policy)) || [];
+    p.forms = [...new Set([...(p.forms || []).map(String), ...mapped])];
+  });
+}
+
+const policyExists = num => POLICIES.some(p => p.policy === String(num));
+const mappedPolicyNumbers = () => [...POLICY_TO_FORMS.keys()];
+const unresolvedPolicyNumbers = () => mappedPolicyNumbers().filter(n => !policyExists(n));
+
+/* Pull a known form number out of a filename.
+   A bare number that is also a live policy number stays a policy — only an
+   as-written match (leading zeros intact) is treated as a form. */
+function detectFormNumber(filename) {
+  const base = filename.replace(/\.[^.]+$/, '').toUpperCase();
+  const tokens = base.match(/[A-Z]{0,3}[\s._-]?\d{2,6}/g) || [];
+  let padded = null;
+  for (const tok of tokens) {
+    const cleaned = tok.replace(/[\s._-]/g, '');
+    if (FORM_KEYS.has(cleaned)) return {number: FORM_KEYS.get(cleaned), exact: true};
+    const key = normFormKey(tok);
+    if (FORM_KEYS.has(key) && !padded) {
+      const bare = cleaned.replace(/^[A-Z]+/, '');
+      padded = {number: FORM_KEYS.get(key), exact: false, collides: policyExists(bare)};
+    }
+  }
+  return padded;
+}
+
+function mappedPoliciesFor(formNumber) {
+  const nums = FORM_TO_POLICIES.get(formNumber) || [];
+  return {
+    numbers: nums,
+    indexes: nums.map(n => POLICIES.findIndex(p => p.policy === n)).filter(i => i >= 0),
+    unresolved: nums.filter(n => !policyExists(n))
+  };
+}
+
 /* ---------- helpers ---------- */
 const byId = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -90,7 +181,7 @@ function renderPolicyTable() {
     const linked = formsForPolicy(p.policy).map(f => f.id).concat((p.forms || []).map(String));
     const uniq = [...new Set(linked)];
     const pending = pendingCount(idx);
-    return `<tr><td>${riskBadge(p.risk)}</td><td><div class="policytitle" onclick="openPolicy(${idx})">${esc(p.policy)} · ${esc(p.title)}</div><div class="subtle">${esc(p.section)}${pending ? ` · <span class="status pendingpill">${pending} pending upload${pending === 1 ? '' : 's'}</span>` : ''}</div></td><td>${esc(p.regulatory || 'Corporate')}</td><td>${uniq.length ? uniq.map(f => `<span class="tag">${esc(f)}</span>`).join('') : '—'}</td><td>${statusFor(p, i)}</td><td><button class="btn outline touchbtn" onclick="openPolicy(${idx})">Open</button></td></tr>`;
+    return `<tr><td>${riskBadge(p.risk)}</td><td><div class="policytitle" onclick="openPolicy(${idx})">${esc(p.policy)} · ${esc(p.title)}</div><div class="subtle">${esc(p.section)}${p.provisional ? ' · <span class="status pending">Provisional — from tracker mapping</span>' : ''}${pending ? ` · <span class="status pendingpill">${pending} pending upload${pending === 1 ? '' : 's'}</span>` : ''}</div></td><td>${esc(p.regulatory || 'Corporate')}</td><td>${uniq.length ? uniq.map(f => `<span class="tag">${esc(f)}</span>`).join('') : '—'}</td><td>${statusFor(p, i)}</td><td><button class="btn outline touchbtn" onclick="openPolicy(${idx})">Open</button></td></tr>`;
   }).join('') : '<tr><td colspan="6" class="subtle" style="text-align:center;padding:26px">No policies match the current filters.</td></tr>';
 }
 function resetLibraryFilters() {
@@ -207,6 +298,8 @@ ${pendingBlock(idx)}
 
 /* ---------- init ---------- */
 function init() {
+  buildFormMapIndex();
+  applyMappingToPolicies();
   SECTIONS.forEach(s => byId('sectionFilter').insertAdjacentHTML('beforeend', `<option>${esc(s)}</option>`));
   byId('libraryNavCount').textContent = POLICIES.length;
   byId('tocNavCount').textContent = SECTIONS.length;
@@ -229,6 +322,7 @@ function init() {
   renderRuleSubjectPolicies();
   seedAssignments();
   renderAssignments();
+  renderMappingCoverage();
 }
 document.addEventListener('DOMContentLoaded', init);
 
@@ -327,6 +421,8 @@ function classify(file) {
 function inferKind(name) {
   const n = name.toLowerCase();
   const ext = extOf(name);
+  const hit = detectFormNumber(name);
+  if (hit && (hit.exact || !hit.collides)) return 'form';
   if (/^frm[-_ ]/.test(n) || n.includes('form')) return 'form';
   if (['png','jpg','jpeg','txt','md','pptx'].includes(ext)) return 'attachment';
   return 'policy';
@@ -376,6 +472,22 @@ async function queueFiles(fileList) {
         row.note = 'Identical file already uploaded';
       }
     }
+    if (row.kind === 'form') {
+      const hit = detectFormNumber(file.name);
+      if (hit) {
+        row.formNumber = hit.number;
+        const m = mappedPoliciesFor(hit.number);
+        row.mappedPolicies = m.numbers;
+        row.unresolvedPolicies = m.unresolved;
+        if (row.status === 'ready') {
+          row.note = m.unresolved.length
+            ? `Tracker: ${m.numbers.length} polic${m.numbers.length === 1 ? 'y' : 'ies'} · ${m.unresolved.join(', ')} not in library yet`
+            : `Auto-linked from tracker mapping${hit.exact ? '' : ' (padded match — verify)'}`;
+        }
+      } else if (row.status === 'ready') {
+        row.note = 'No tracker form number in the filename — will need cataloguing';
+      }
+    }
     if (row.kind !== 'form') {
       const m = matchPolicy(file.name);
       row.targetIdx = m.idx;
@@ -408,7 +520,11 @@ const STATUS_CHIP = {
 };
 
 function targetLabel(row) {
-  if (row.kind === 'form') return '<span class="subtle">New / existing controlled form</span>';
+  if (row.kind === 'form') {
+    if (!row.formNumber) return '<span class="subtle">Uncatalogued form</span>';
+    const resolved = (row.mappedPolicies || []).filter(n => policyExists(n));
+    return `<b>Form ${esc(row.formNumber)}</b><div class="subtle">${resolved.length ? esc(resolved.join(', ')) : 'no live policy'}${(row.unresolvedPolicies || []).length ? ` · <span class="required">${esc(row.unresolvedPolicies.join(', '))} pending</span>` : ''}</div>`;
+  }
   if (row.targetIdx === null || row.targetIdx === undefined) return '<span class="subtle">— unmatched —</span>';
   const p = POLICIES[row.targetIdx];
   return `<b>${esc(p.policy)}</b> · ${esc(p.title)}<div class="subtle">${esc(p.section)}</div>`;
@@ -480,7 +596,7 @@ async function processRow(r) {
   r.status = 'done';
   r.stage = 'Ready for review';
   INGESTED.add(r.fp);
-  if (r.kind === 'form') addDraftForm(r);
+  if (r.kind === 'form') r.formNumber ? registerMappedForm(r) : addDraftForm(r);
   if (r.kind !== 'form' && r.targetIdx !== null) {
     const list = PENDING_VERSIONS.get(r.targetIdx) || [];
     list.push({name: r.name, size: r.file.size, at: new Date().toLocaleString(), file: r.file, ext: r.ext});
@@ -858,6 +974,7 @@ function renderForms() {
       .join(' ').toLowerCase().includes(q)));
   byId('formCount').textContent = `${rows.length} form${rows.length === 1 ? '' : 's'}`;
   byId('formNavCount').textContent = CONTROLLED_FORMS.length;
+  renderMappingCoverage();
 
   byId('draftForms').innerHTML = DRAFT_FORMS.length
     ? `<div class="subtle" style="margin-bottom:5px"><b>${DRAFT_FORMS.length}</b> uploaded file${DRAFT_FORMS.length === 1 ? '' : 's'} waiting to be catalogued</div>` +
@@ -1219,4 +1336,83 @@ function acknowledgeAllVisible() {
   open.forEach(a => { a.status = 'acknowledged'; a.ackAt = new Date(); });
   renderAssignments();
   toast(`${open.length} acknowledgement${open.length === 1 ? '' : 's'} recorded`);
+}
+
+
+/* A form whose number appears in the tracker mapping is catalogued on
+   arrival: it links itself to every policy the mapping lists, including
+   policies that are not in the library yet (those attach on their own once
+   the policy record exists, because links are stored by policy number). */
+function registerMappedForm(row) {
+  const num = row.formNumber;
+  const {numbers, indexes} = mappedPoliciesFor(num);
+  const name = row.name.replace(/\.[^.]+$/, '')
+    .replace(new RegExp(`\\\\b0*${num.replace(/^0+/, '')}\\\\b`, 'i'), '')
+    .replace(/[_-]+/g, ' ').trim() || (FORM_TITLES.get(num) || `Form ${num}`);
+  const risk = indexes.length ? Math.max(...indexes.map(i => POLICIES[i].risk)) : 3;
+  const existing = CONTROLLED_FORMS.find(f => f.id === num);
+  const rec = {
+    id: num,
+    name,
+    version: existing ? bumpVersion(existing.version) : 'v1.0',
+    risk,
+    file: row.name,
+    blob: row.file,
+    policies: numbers,
+    roles: existing?.roles || [],
+    departments: existing?.departments || [],
+    facilities: existing?.facilities || ['Enterprise / Corporate'],
+    owner: existing?.owner || 'Compliance / Risk',
+    notify: existing?.notify || 'Portal + Email + Acknowledgement Required',
+    source: 'tracker mapping'
+  };
+  if (existing) Object.assign(existing, rec); else CONTROLLED_FORMS.unshift(rec);
+}
+function bumpVersion(v) {
+  const n = parseFloat(String(v).replace(/^v/i, ''));
+  return isNaN(n) ? 'v1.1' : 'v' + (n + 0.1).toFixed(1);
+}
+
+/* Coverage of the tracker mapping: what is loaded, uploaded, and still owed. */
+function renderMappingCoverage() {
+  const host = byId('mappingCoverage');
+  if (!host || typeof POLICY_FORM_MAP === 'undefined') return;
+  const totalForms = FORM_TO_POLICIES.size;
+  const uploaded = [...FORM_TO_POLICIES.keys()].filter(n => CONTROLLED_FORMS.some(f => f.id === n)).length;
+  const unresolved = unresolvedPolicyNumbers();
+  const links = [...POLICY_TO_FORMS.values()].reduce((a, v) => a + v.length, 0);
+  host.innerHTML = `<div class="grouplabel">Tracker mapping · ${esc(POLICY_FORM_MAP.source_workbook)}</div>
+<div class="linkmatrix"><div><b>${uploaded} / ${totalForms}</b><span class="subtle">Forms uploaded</span></div><div><b>${POLICY_TO_FORMS.size}</b><span class="subtle">Mapped policies</span></div><div><b>${links}</b><span class="subtle">Policy-form links</span></div></div>
+<div class="subtle" style="margin-top:7px">Upload a form whose filename contains its tracker number (e.g. <b>00158</b>) and it links itself to every policy the mapping lists — no manual cataloguing.</div>
+${unresolved.length ? `<div class="subtle" style="margin-top:8px"><b>${unresolved.length} mapped policies are not in the library yet</b> — their forms will attach automatically once the policy records exist.<div class="assign-summary">${unresolved.map(n => `<span class="assign-chip">${esc(n)}</span>`).join('')}</div><button class="btn outline touchbtn" style="margin-top:8px" onclick="addMappedPolicies()">Add these ${unresolved.length} policies from the tracker</button></div>` : ''}`;
+}
+
+/* Creates library records for mapped policies the seeded tracker predates —
+   titles and sections come from the mapping file, flagged as provisional. */
+function addMappedPolicies() {
+  const missing = unresolvedPolicyNumbers();
+  if (!missing.length) return;
+  if (!confirm(`Add ${missing.length} policy records from the tracker mapping? They are created as provisional records (title and section from the mapping) so their forms can link.`)) return;
+  const meta = new Map();
+  POLICY_FORM_MAP.sections.forEach(sec => sec.policy_form_mappings.forEach(m =>
+    meta.set(String(m.policy_number), {title: m.policy_title, section: sectionForWorksheet(sec.worksheet)})));
+  missing.forEach(num => {
+    const m = meta.get(num) || {title: `Policy ${num}`, section: 'UNASSIGNED'};
+    if (!SECTIONS.includes(m.section)) SECTIONS.push(m.section);
+    POLICIES.push({
+      section: m.section, policy: num, title: m.title, forms: POLICY_TO_FORMS.get(num) || [],
+      departments: '', risk: 3, basis: 'Provisional — risk not yet classified',
+      regulatory: 'To be confirmed', revision: '', provisional: true
+    });
+  });
+  applyMappingToPolicies();
+  byId('libraryNavCount').textContent = POLICIES.length;
+  byId('tocNavCount').textContent = SECTIONS.length;
+  renderDashboard();
+  renderQuickTOC();
+  renderTOC();
+  renderPolicyTable();
+  renderForms();
+  renderMappingCoverage();
+  toast(`${missing.length} provisional policy records added from the tracker mapping`);
 }

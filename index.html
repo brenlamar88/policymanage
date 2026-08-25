@@ -242,6 +242,7 @@
 <div style="display:flex;gap:8px;margin-top:14px"><button class="btn primary touchbtn" style="flex:1" onclick="saveControlledForm()">Save Controlled Form &amp; Assign</button><button class="btn outline touchbtn" onclick="clearFormEditor()">Clear</button></div></div>
 
 <div class="card panel"><div class="panelhead"><div><h4>Controlled Forms Library</h4><div class="subtle">Policy links, assigned roles, departments, facilities, and active version.</div></div><span id="formCount" class="pill">0 forms</span></div>
+<div id="mappingCoverage" class="assignment-preview" style="margin-bottom:12px"></div>
 <div id="draftForms"></div>
 <div class="toolbar"><input id="formSearch" class="search" placeholder="Search forms, policy links, roles…" oninput="renderForms()"><select id="formRiskFilter" class="select" onchange="renderForms()"><option value="">All Risk Levels</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select></div>
 <div id="formsList"></div></div>
@@ -306,5 +307,6 @@
 </div></div></div>
 <div id="docModal" class="modal" onclick="if(event.target===this)closeDoc()"><div class="modalbox wide"><div class="modalhead"><div><b id="docTitle">Controlled Document</b><div class="subtle" id="docSubtitle"></div></div><button class="close" onclick="closeDoc()">×</button></div><div class="modalbody"><div class="docviewer"><div id="docPreview"></div><div id="docDetails"></div></div><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn outline touchbtn" id="docDownload" onclick="downloadDoc()">Download</button><button class="btn outline touchbtn" onclick="printDoc()">Print</button><button class="btn primary touchbtn" onclick="closeDoc()">Close</button></div></div></div></div>
 <div id="toast" class="toast"></div>
+<script src="data/policy-form-map.js"></script>
 <script src="app.js"></script>
 </body></html>

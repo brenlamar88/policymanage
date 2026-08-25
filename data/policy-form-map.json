@@ -1,0 +1,1061 @@
+{
+  "source_workbook": "Enterprise_Policy_TRACKER AND TOC 6-30-2026.xlsx",
+  "instructions": [
+    "Match each uploaded form only to the policy listed in this mapping.",
+    "Treat policy numbers and form numbers as strings.",
+    "Preserve all leading zeros exactly.",
+    "Ignore policies not included because the spreadsheet lists no associated form for them."
+  ],
+  "checked_worksheets": [
+    "ORGANIZATIONAL MANAGMENT",
+    "ADMISSION ASSESSMENT MANAGEMENT",
+    "CASE MANAGEMENT",
+    "DIAGNOSITC MANAGMENT",
+    "DIETARY MANAGEMENT",
+    "EMERGENCY MANAGEMENT",
+    "ENVIRONMENT OF CARE",
+    "HUMAN RESOURCES MANAGEMENT",
+    "INFECTION CONTROL AND PREVENTIO",
+    "LEADERSHIP MANAGEMENT",
+    "LIFE SAFETY",
+    "MEDICATION MANAGEMENT",
+    "QUALITY MANAGEMENT",
+    "PROVISION OF CARE",
+    "TRANSPORTATION",
+    "PATIENT RIGHTS",
+    "WAIVED TESTING",
+    "HIM",
+    "FINANCE",
+    "RESTRAINT SECLUSION"
+  ],
+  "sections": [
+    {
+      "worksheet": "ORGANIZATIONAL MANAGMENT",
+      "section_code": "OM",
+      "policy_form_mappings": [
+        {
+          "policy_number": "0005",
+          "policy_title": "PSYCHIATRIC NURSING CARE",
+          "associated_form_numbers": [
+            "00158"
+          ]
+        },
+        {
+          "policy_number": "0006",
+          "policy_title": "CLINICAL SERVICES",
+          "associated_form_numbers": [
+            "00085"
+          ]
+        },
+        {
+          "policy_number": "0008",
+          "policy_title": "UTILIZATION MANAGEMENT",
+          "associated_form_numbers": [
+            "00020",
+            "00021",
+            "00022",
+            "00118"
+          ]
+        }
+      ]
+    },
+    {
+      "worksheet": "ADMISSION ASSESSMENT MANAGEMENT",
+      "section_code": "AS",
+      "policy_form_mappings": [
+        {
+          "policy_number": "1000",
+          "policy_title": "INQUIRIES REFERRALS TRIAGE",
+          "associated_form_numbers": [
+            "00026",
+            "00027",
+            "00032",
+            "00033"
+          ]
+        },
+        {
+          "policy_number": "1003",
+          "policy_title": "PSYCHOSOCIAL ASSESSMENT",
+          "associated_form_numbers": [
+            "00140"
+          ]
+        },
+        {
+          "policy_number": "1006",
+          "policy_title": "ASSESSMENT AND REASSESSMENT",
+          "associated_form_numbers": [
+            "00141"
+          ]
+        },
+        {
+          "policy_number": "1009",
+          "policy_title": "SAFE-T PROTOCOL WITH C-SSRS SUICIDE RISK ASSESSMENT",
+          "associated_form_numbers": [
+            "00133",
+            "00142"
+          ]
+        },
+        {
+          "policy_number": "1010",
+          "policy_title": "HOMICIDE VIOLENCE AGGRESSION ASSESSMENT",
+          "associated_form_numbers": [
+            "00146"
+          ]
+        },
+        {
+          "policy_number": "1013",
+          "policy_title": "AT RISK FOR FALLS",
+          "associated_form_numbers": [
+            "00029",
+            "00157"
+          ]
+        },
+        {
+          "policy_number": "1016",
+          "policy_title": "NURSING ASSESSMENT MIA",
+          "associated_form_numbers": [
+            "00034"
+          ]
+        },
+        {
+          "policy_number": "1017",
+          "policy_title": "SKIN AND BRADEN SCALE",
+          "associated_form_numbers": [
+            "00143"
+          ]
+        },
+        {
+          "policy_number": "1020",
+          "policy_title": "ADMISSION ASSESSMENT CLOSE OBSERVATION",
+          "associated_form_numbers": [
+            "00028"
+          ]
+        },
+        {
+          "policy_number": "1021",
+          "policy_title": "NUTRITIONAL ASSESSMENT AND REASSESSMENT",
+          "associated_form_numbers": [
+            "00024"
+          ]
+        },
+        {
+          "policy_number": "1022",
+          "policy_title": "DO NOT RESUSCITATE (DNR)",
+          "associated_form_numbers": [
+            "00025"
+          ]
+        },
+        {
+          "policy_number": "1023",
+          "policy_title": "ADVANCED DIRECTIVES",
+          "associated_form_numbers": [
+            "00001"
+          ]
+        },
+        {
+          "policy_number": "1032",
+          "policy_title": "PNEUMOCOCCAL AND INFLUENZA VACCINE PROTOCOLS SCREENINGS",
+          "associated_form_numbers": [
+            "00145"
+          ]
+        }
+      ]
+    },
+    {
+      "worksheet": "CASE MANAGEMENT",
+      "section_code": "CM",
+      "policy_form_mappings": [
+        {
+          "policy_number": "2001",
+          "policy_title": "MEDICAL NECESSITY CRITERIA",
+          "associated_form_numbers": [
+            "00023"
+          ]
+        },
+        {
+          "policy_number": "2012",
+          "policy_title": "PATIENT DISCHARGE PROCESS",
+          "associated_form_numbers": [
+            "00161"
+          ]
+        },
+        {
+          "policy_number": "2013",
+          "policy_title": "DIRECT PATIENT TRANSFER",
+          "associated_form_numbers": [
+            "00147",
+            "00148"
+          ]
+        },
+        {
+          "policy_number": "2015",
+          "policy_title": "DISCHARGE MEDICATION EDUCATION",
+          "associated_form_numbers": [
+            "00160"
+          ]
+        },
+        {
+          "policy_number": "2017",
+          "policy_title": "DISCHARGE CONTINUING CARE PLAN",
+          "associated_form_numbers": [
+            "00163"
+          ]
+        }
+      ]
+    },
+    {
+      "worksheet": "DIETARY MANAGEMENT",
+      "section_code": "DT",
+      "policy_form_mappings": [
+        {
+          "policy_number": "4008",
+          "policy_title": "DIET ORDER",
+          "associated_form_numbers": [
+            "00037"
+          ]
+        },
+        {
+          "policy_number": "4017",
+          "policy_title": "NUTRITIONAL ASSESSMENT AND REASSESSMENT",
+          "associated_form_numbers": [
+            "00039"
+          ]
+        },
+        {
+          "policy_number": "4023",
+          "policy_title": "TEMPERATURE LOG",
+          "associated_form_numbers": [
+            "00038",
+            "00040"
+          ]
+        },
+        {
+          "policy_number": "4024",
+          "policy_title": "PERSONNEL AND INFECTION CONTROL",
+          "associated_form_numbers": [
+            "00036"
+          ]
+        },
+        {
+          "policy_number": "4027",
+          "policy_title": "DOCUMENTING IN THE PATIENT MEDICAL CHART",
+          "associated_form_numbers": [
+            "00138"
+          ]
+        }
+      ]
+    },
+    {
+      "worksheet": "EMERGENCY MANAGEMENT",
+      "section_code": "EM",
+      "policy_form_mappings": [
+        {
+          "policy_number": "5002",
+          "policy_title": "HOSPITAL WIDE - HUMAN RESOURCES - KEY CONTROL/ACCESS CONTROL CARDS",
+          "associated_form_numbers": [
+            "00107"
+          ]
+        },
+        {
+          "policy_number": "5008",
+          "policy_title": "HOSPITAL WIDE - EMERGENCY MANAGEMENT PLAN - DRILLS",
+          "associated_form_numbers": [
+            "00113",
+            "00182",
+            "00192"
+          ]
+        },
+        {
+          "policy_number": "5011",
+          "policy_title": "HAZARD COMMUNICATION PROGRAM",
+          "associated_form_numbers": [
+            "00090",
+            "00114"
+          ]
+        },
+        {
+          "policy_number": "5014",
+          "policy_title": "BOMB THREAT",
+          "associated_form_numbers": [
+            "00177"
+          ]
+        },
+        {
+          "policy_number": "5016",
+          "policy_title": "DISASTER PLANS",
+          "associated_form_numbers": [
+            "00179",
+            "00184"
+          ]
+        },
+        {
+          "policy_number": "5018",
+          "policy_title": "EMERGENCY LIGHTING AND POWER",
+          "associated_form_numbers": [
+            "00183"
+          ]
+        },
+        {
+          "policy_number": "5020",
+          "policy_title": "CODE BLUE - MEDICAL EMERGENCIES",
+          "associated_form_numbers": [
+            "00071"
+          ]
+        }
+      ]
+    },
+    {
+      "worksheet": "ENVIRONMENT OF CARE",
+      "section_code": "EC",
+      "policy_form_mappings": [
+        {
+          "policy_number": "6001",
+          "policy_title": "UTILITY SYSTEMS MANAGEMENT PLAN",
+          "associated_form_numbers": [
+            "00194"
+          ]
+        },
+        {
+          "policy_number": "6010",
+          "policy_title": "STORAGE OF FLAMMABLES AND COMBUSTIBLES",
+          "associated_form_numbers": [
+            "00186"
+          ]
+        },
+        {
+          "policy_number": "6011",
+          "policy_title": "CLEANING OUTSIDE OF DRYERS",
+          "associated_form_numbers": [
+            "00190"
+          ]
+        },
+        {
+          "policy_number": "6012",
+          "policy_title": "CLEANING INSIDE OF WASHER AND DRYERS",
+          "associated_form_numbers": [
+            "00178",
+            "00190",
+            "00191"
+          ]
+        },
+        {
+          "policy_number": "6017",
+          "policy_title": "ELECTRICAL SAFETY",
+          "associated_form_numbers": [
+            "00181"
+          ]
+        },
+        {
+          "policy_number": "6018",
+          "policy_title": "INVENTORY AND INSPECTION OF NEW EQUIPMENT",
+          "associated_form_numbers": [
+            "00167",
+            "00180"
+          ]
+        },
+        {
+          "policy_number": "6020",
+          "policy_title": "EMPLOYEE SAFETY ORIENTATIOIN",
+          "associated_form_numbers": [
+            "00188"
+          ]
+        },
+        {
+          "policy_number": "6023",
+          "policy_title": "GROUNDS SAFETY",
+          "associated_form_numbers": [
+            "00112"
+          ]
+        },
+        {
+          "policy_number": "6025",
+          "policy_title": "EMERGENCY EYE WASH STATIONS",
+          "associated_form_numbers": [
+            "00166"
+          ]
+        },
+        {
+          "policy_number": "6029",
+          "policy_title": "VISITORS",
+          "associated_form_numbers": [
+            "00088",
+            "00100"
+          ]
+        }
+      ]
+    },
+    {
+      "worksheet": "HUMAN RESOURCES MANAGEMENT",
+      "section_code": "HR",
+      "policy_form_mappings": [
+        {
+          "policy_number": "7000",
+          "policy_title": "NEW HIRE PAPERWORK",
+          "associated_form_numbers": [
+            "00058",
+            "00060",
+            "00070",
+            "00076",
+            "00078"
+          ]
+        },
+        {
+          "policy_number": "7001",
+          "policy_title": "APPLICATION PROCESS",
+          "associated_form_numbers": [
+            "00049",
+            "00059",
+            "00077"
+          ]
+        },
+        {
+          "policy_number": "7002",
+          "policy_title": "POSITION COMPETENCIES",
+          "associated_form_numbers": [
+            "00061",
+            "00068"
+          ]
+        },
+        {
+          "policy_number": "7003",
+          "policy_title": "QUALIFICATIONS AND JOB DESCRIPTIONS",
+          "associated_form_numbers": [
+            "00066"
+          ]
+        },
+        {
+          "policy_number": "7004",
+          "policy_title": "NEW EMPLOYEE ORIENTATION",
+          "associated_form_numbers": [
+            "00041",
+            "00042",
+            "00047",
+            "00051",
+            "00124"
+          ]
+        },
+        {
+          "policy_number": "7005",
+          "policy_title": "CORRECTIVE ACTION REPORTS",
+          "associated_form_numbers": [
+            "00043"
+          ]
+        },
+        {
+          "policy_number": "7010",
+          "policy_title": "TRAINING AND DEVELOPMENT",
+          "associated_form_numbers": [
+            "00046",
+            "00072"
+          ]
+        },
+        {
+          "policy_number": "7013",
+          "policy_title": "PRE-EMPLOYMENT AND ANNUAL HEALTH SCREENING",
+          "associated_form_numbers": [
+            "00073",
+            "00074",
+            "00079"
+          ]
+        },
+        {
+          "policy_number": "7014",
+          "policy_title": "SERVICES CONTRACTORS",
+          "associated_form_numbers": [
+            "00083",
+            "00087"
+          ]
+        },
+        {
+          "policy_number": "7015",
+          "policy_title": "BACKGROUND SCREENING",
+          "associated_form_numbers": [
+            "00054"
+          ]
+        },
+        {
+          "policy_number": "7016",
+          "policy_title": "HR MANAGEMENT SOFTWARE",
+          "associated_form_numbers": [
+            "00069"
+          ]
+        },
+        {
+          "policy_number": "7017",
+          "policy_title": "EMPLOYEE GRIEVANCE POLICY",
+          "associated_form_numbers": [
+            "00010"
+          ]
+        },
+        {
+          "policy_number": "7019",
+          "policy_title": "ATTENDANCE AND TARDINESS",
+          "associated_form_numbers": [
+            "00057",
+            "00156"
+          ]
+        },
+        {
+          "policy_number": "7020",
+          "policy_title": "WORK RELATED INJURY",
+          "associated_form_numbers": [
+            "00044",
+            "00045"
+          ]
+        }
+      ]
+    },
+    {
+      "worksheet": "INFECTION CONTROL AND PREVENTIO",
+      "section_code": "IC",
+      "policy_form_mappings": [
+        {
+          "policy_number": "8003",
+          "policy_title": "EMPLOYEE INFECTION CONTROL",
+          "associated_form_numbers": [
+            "00091",
+            "00108"
+          ]
+        },
+        {
+          "policy_number": "8004",
+          "policy_title": "STATE SPECIFIC HEALTH SCREEN",
+          "associated_form_numbers": [
+            "00096"
+          ]
+        },
+        {
+          "policy_number": "8006",
+          "policy_title": "PRE-EMPLOYMENT AND ANNUALL HEALTH SCREENING",
+          "associated_form_numbers": [
+            "00073",
+            "00074"
+          ]
+        },
+        {
+          "policy_number": "8007",
+          "policy_title": "EMPLOYEE EXPOSURE TO COMMUNICABLE DISEASE",
+          "associated_form_numbers": [
+            "00093",
+            "00095",
+            "00117"
+          ]
+        },
+        {
+          "policy_number": "8010",
+          "policy_title": "HAND WASHING",
+          "associated_form_numbers": [
+            "00103"
+          ]
+        },
+        {
+          "policy_number": "8011",
+          "policy_title": "PREVENTION CONTROL AND MONITORING",
+          "associated_form_numbers": [
+            "00092",
+            "00105"
+          ]
+        },
+        {
+          "policy_number": "8017",
+          "policy_title": "BED BUG",
+          "associated_form_numbers": [
+            "00097",
+            "00098",
+            "00099"
+          ]
+        },
+        {
+          "policy_number": "8016",
+          "policy_title": "COVID-19 DEFINITION BACKGROUND AND CDC GUIDANCE",
+          "associated_form_numbers": [
+            "00094"
+          ]
+        }
+      ]
+    },
+    {
+      "worksheet": "LEADERSHIP MANAGEMENT",
+      "section_code": "LP",
+      "policy_form_mappings": [
+        {
+          "policy_number": "9006",
+          "policy_title": "CONTRACT SERVICE",
+          "associated_form_numbers": [
+            "00080",
+            "00081",
+            "00082",
+            "00084"
+          ]
+        },
+        {
+          "policy_number": "9008",
+          "policy_title": "GENERAL STAFFING",
+          "associated_form_numbers": [
+            "00002",
+            "00003",
+            "00151"
+          ]
+        },
+        {
+          "policy_number": "9012",
+          "policy_title": "ROOM CHECKS",
+          "associated_form_numbers": [
+            "00115"
+          ]
+        },
+        {
+          "policy_number": "9021",
+          "policy_title": "STAFFING EFFECTIVENESS",
+          "associated_form_numbers": [
+            "00155"
+          ]
+        }
+      ]
+    },
+    {
+      "worksheet": "LIFE SAFETY",
+      "section_code": "LS",
+      "policy_form_mappings": [
+        {
+          "policy_number": "10000",
+          "policy_title": "LIFE SAFETY MANAGEMENT PLAN",
+          "associated_form_numbers": [
+            "00187"
+          ]
+        },
+        {
+          "policy_number": "10002",
+          "policy_title": "FIRE ALARM SYSTEM TESTING AND INSPECTION",
+          "associated_form_numbers": [
+            "00170"
+          ]
+        },
+        {
+          "policy_number": "10003",
+          "policy_title": "FIRE DRILL POLICY",
+          "associated_form_numbers": [
+            "00168",
+            "00169",
+            "00185"
+          ]
+        },
+        {
+          "policy_number": "10004",
+          "policy_title": "USE OF A FIRE EXTINGUISHER",
+          "associated_form_numbers": [
+            "00174",
+            "00193"
+          ]
+        },
+        {
+          "policy_number": "10006",
+          "policy_title": "SPRINKLER DROP TEST",
+          "associated_form_numbers": [
+            "00120"
+          ]
+        },
+        {
+          "policy_number": "10007",
+          "policy_title": "SMOKE DETECTOR - INSPECTION PROCEDURES",
+          "associated_form_numbers": [
+            "00171"
+          ]
+        },
+        {
+          "policy_number": "10008",
+          "policy_title": "LOCATION OF FIRE EXTINGUISHERS",
+          "associated_form_numbers": [
+            "00175"
+          ]
+        },
+        {
+          "policy_number": "10009",
+          "policy_title": "FIRE SAFETY - HAZARDS",
+          "associated_form_numbers": [
+            "00176"
+          ]
+        },
+        {
+          "policy_number": "10011",
+          "policy_title": "INTERIM LIFE SAFETY MEASURES POLICY",
+          "associated_form_numbers": [
+            "00007"
+          ]
+        },
+        {
+          "policy_number": "10012",
+          "policy_title": "FIRE ALARM SYSTEM - MONITORING AND TESTING",
+          "associated_form_numbers": [
+            "00172"
+          ]
+        },
+        {
+          "policy_number": "10013",
+          "policy_title": "FIRE DOOR INSPECTION",
+          "associated_form_numbers": [
+            "00173"
+          ]
+        },
+        {
+          "policy_number": "10018",
+          "policy_title": "TESTING OF EMERGENCY GENERATORS",
+          "associated_form_numbers": [
+            "00004",
+            "00005",
+            "00006"
+          ]
+        }
+      ]
+    },
+    {
+      "worksheet": "MEDICATION MANAGEMENT",
+      "section_code": "MM",
+      "policy_form_mappings": [
+        {
+          "policy_number": "11004",
+          "policy_title": "MEDICATION VARIANCE",
+          "associated_form_numbers": [
+            "00064",
+            "00065"
+          ]
+        },
+        {
+          "policy_number": "11009",
+          "policy_title": "ADM NARCOTICS",
+          "associated_form_numbers": [
+            "00063"
+          ]
+        },
+        {
+          "policy_number": "11030",
+          "policy_title": "MEDICATION ROOM",
+          "associated_form_numbers": [
+            "00040",
+            "00055"
+          ]
+        },
+        {
+          "policy_number": "11039",
+          "policy_title": "REPORTING OF ADVERSE DRUG REACTIONS",
+          "associated_form_numbers": [
+            "00052"
+          ]
+        },
+        {
+          "policy_number": "11040",
+          "policy_title": "CONTROLLED SUBSTANCES (GENERAL)",
+          "associated_form_numbers": [
+            "00053"
+          ]
+        },
+        {
+          "policy_number": "11049",
+          "policy_title": "MULTIDOSE VIALS",
+          "associated_form_numbers": [
+            "00119"
+          ]
+        }
+      ]
+    },
+    {
+      "worksheet": "QUALITY MANAGEMENT",
+      "section_code": "QM",
+      "policy_form_mappings": [
+        {
+          "policy_number": "12003",
+          "policy_title": "METHOD OF PERFORMANCE ASSESSMENT",
+          "associated_form_numbers": [
+            "00153",
+            "00154"
+          ]
+        },
+        {
+          "policy_number": "12004",
+          "policy_title": "PATIENT SATISFACTION SURVEY",
+          "associated_form_numbers": [
+            "00152"
+          ]
+        },
+        {
+          "policy_number": "12005",
+          "policy_title": "OCCURANCE REPORTING AND PROCESS",
+          "associated_form_numbers": [
+            "00106",
+            "00116"
+          ]
+        },
+        {
+          "policy_number": "12007",
+          "policy_title": "FORM CHANGE AND REVISION",
+          "associated_form_numbers": [
+            "00123"
+          ]
+        }
+      ]
+    },
+    {
+      "worksheet": "PROVISION OF CARE",
+      "section_code": "PC",
+      "policy_form_mappings": [
+        {
+          "policy_number": "13001",
+          "policy_title": "MASTER TREATMENT PLAN, TREATMENT TEAM, TREATMENT PLAN UPDATES",
+          "associated_form_numbers": [
+            "00136"
+          ]
+        },
+        {
+          "policy_number": "13010",
+          "policy_title": "PROGRRESS RECORDING AND TIMELINESS OF REQUIREED CLINICAL TASK DOCUMENTATION",
+          "associated_form_numbers": [
+            "00122"
+          ]
+        },
+        {
+          "policy_number": "13011",
+          "policy_title": "INDIVIDUAL GROUP, FAMILY THERAPY, AND FAMILY CONTACT",
+          "associated_form_numbers": [
+            "00135",
+            "00137"
+          ]
+        },
+        {
+          "policy_number": "13015",
+          "policy_title": "PATIENT VALUABLES AND BELONGINGS",
+          "associated_form_numbers": [
+            "00144"
+          ]
+        },
+        {
+          "policy_number": "13017",
+          "policy_title": "SAFETY PRECAUTIONS AND ROUNDS",
+          "associated_form_numbers": [
+            "00109",
+            "00111"
+          ]
+        },
+        {
+          "policy_number": "13023",
+          "policy_title": "MANAGEMENT OF THE COMBATIVE AND ASSAULTIVE PATIENTS",
+          "associated_form_numbers": [
+            "00056"
+          ]
+        },
+        {
+          "policy_number": "13029",
+          "policy_title": "EMERGENCY CRASH CART",
+          "associated_form_numbers": [
+            "00067",
+            "00089"
+          ]
+        },
+        {
+          "policy_number": "13033",
+          "policy_title": "UNFAVORABLE - AMA DISCHARGES AGAINST MEDICAL ADVICE",
+          "associated_form_numbers": [
+            "00019"
+          ]
+        },
+        {
+          "policy_number": "13035",
+          "policy_title": "CRITICAL VALUES",
+          "associated_form_numbers": [
+            "00139"
+          ]
+        },
+        {
+          "policy_number": "13042",
+          "policy_title": "PATIENT CONSENT - TELEMEDICINE",
+          "associated_form_numbers": [
+            "00131"
+          ]
+        }
+      ]
+    },
+    {
+      "worksheet": "TRANSPORTATION",
+      "section_code": "TP",
+      "policy_form_mappings": [
+        {
+          "policy_number": "14004",
+          "policy_title": "VEHICLE NEW EMPLOYEE ORIENTATION",
+          "associated_form_numbers": [
+            "06075",
+            "06076",
+            "06077",
+            "06078",
+            "06079",
+            "06080",
+            "06081"
+          ]
+        },
+        {
+          "policy_number": "14005",
+          "policy_title": "VEHICLE MAINTENANCE",
+          "associated_form_numbers": [
+            "06030"
+          ]
+        },
+        {
+          "policy_number": "14006",
+          "policy_title": "OPERATION OF WHEELCHAIR LIFT",
+          "associated_form_numbers": [
+            "06077"
+          ]
+        },
+        {
+          "policy_number": "14007",
+          "policy_title": "VEHICLE DAILY INSPECTION",
+          "associated_form_numbers": [
+            "06040",
+            "00164"
+          ]
+        },
+        {
+          "policy_number": "14008",
+          "policy_title": "VEHICLE ACCIDENT  PROCEDURE",
+          "associated_form_numbers": [
+            "06020"
+          ]
+        },
+        {
+          "policy_number": "14009",
+          "policy_title": "VEHICLE MAINTENANCE REQUEST",
+          "associated_form_numbers": [
+            "06040"
+          ]
+        },
+        {
+          "policy_number": "14012",
+          "policy_title": "VEHICLE EMERGENCY AND URGENT CARE",
+          "associated_form_numbers": [
+            "TP1234",
+            "TP 4567"
+          ]
+        }
+      ]
+    },
+    {
+      "worksheet": "PATIENT RIGHTS",
+      "section_code": "PR",
+      "policy_form_mappings": [
+        {
+          "policy_number": "15001",
+          "policy_title": "VOLUNTARY ADMISSION",
+          "associated_form_numbers": [
+            "00008",
+            "00149"
+          ]
+        },
+        {
+          "policy_number": "15002",
+          "policy_title": "INVOLUNTARY ADMISSION",
+          "associated_form_numbers": [
+            "00013",
+            "00162"
+          ]
+        },
+        {
+          "policy_number": "15006",
+          "policy_title": "PATIENT GRIEVANCE PROCESS",
+          "associated_form_numbers": [
+            "00009",
+            "00010",
+            "00011",
+            "00012",
+            "00150"
+          ]
+        },
+        {
+          "policy_number": "15008",
+          "policy_title": "PATIENT RIGHTS AND RESPONSIBILITIES",
+          "associated_form_numbers": [
+            "00018",
+            "00134",
+            "00159"
+          ]
+        }
+      ]
+    },
+    {
+      "worksheet": "HIM",
+      "section_code": "HIM",
+      "policy_form_mappings": [
+        {
+          "policy_number": "17000",
+          "policy_title": "Development, Access and Maintenance of the Electronic Health Record",
+          "associated_form_numbers": [
+            "00125",
+            "00195"
+          ]
+        },
+        {
+          "policy_number": "17004",
+          "policy_title": "Confidentiality and Security Protected Health Information",
+          "associated_form_numbers": [
+            "00075"
+          ]
+        },
+        {
+          "policy_number": "17005",
+          "policy_title": "Fax Transmittal Sheet",
+          "associated_form_numbers": [
+            "00127"
+          ]
+        },
+        {
+          "policy_number": "17008",
+          "policy_title": "Initial Appointment Process Checklist",
+          "associated_form_numbers": [
+            "00126",
+            "00132"
+          ]
+        },
+        {
+          "policy_number": "17013",
+          "policy_title": "Release of Medical Information",
+          "associated_form_numbers": [
+            "00128"
+          ]
+        },
+        {
+          "policy_number": "17015",
+          "policy_title": "The Privileging Process",
+          "associated_form_numbers": [
+            "00130"
+          ]
+        }
+      ]
+    },
+    {
+      "worksheet": "RESTRAINT SECLUSION",
+      "section_code": "RS",
+      "policy_form_mappings": [
+        {
+          "policy_number": "19001",
+          "policy_title": "EMERGENCY USE OF RESTRAINT AND SECLUSION - STAFF ORIENTATION AND TRAINING",
+          "associated_form_numbers": [
+            "00050"
+          ]
+        },
+        {
+          "policy_number": "19005",
+          "policy_title": "RESTRAINT AND SECLUSION DEBRIEFING POST EPISODE",
+          "associated_form_numbers": [
+            "00017"
+          ]
+        },
+        {
+          "policy_number": "19006",
+          "policy_title": "RESTRAINT AND SECLUSION FLOWSHEET USE",
+          "associated_form_numbers": [
+            "00014",
+            "00015",
+            "00016"
+          ]
+        }
+      ]
+    }
+  ]
+}

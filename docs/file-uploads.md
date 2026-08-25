@@ -81,6 +81,30 @@ wins; when nothing matches by number, title-token overlap is tried and the row i
 "verify". Anything still unmatched is held as *needs match* and the admin picks the target
 from a list. Nothing is ingested against a guess.
 
+**Form numbers come from the tracker mapping.** `data/policy-form-map.json` (the
+`Enterprise_Policy_TRACKER AND TOC 6-30-2026.xlsx` export) is the authority on which form
+belongs to which policy: 121 policies, 193 form numbers, 200 links. A form whose filename
+contains its tracker number — `00158.pdf`, `00010 Grievance Form.pdf`, `TP 4567 …` — is
+catalogued on arrival and linked to **every** policy the mapping lists, with no manual
+step. Seven form numbers serve two policies each (00010 → 7017 and 15006; 00040 → 4023 and
+11030; 00073/00074 → 7013 and 8006; 00190 → 6011 and 6012; 06040 → 14007 and 14009;
+06077 → 14004 and 14006) and all links are made.
+
+Two details that matter in practice:
+
+- **Leading zeros decide form vs policy.** `06040 Vehicle Daily Inspection.pdf` is form
+  06040; `6040 Vehicle Daily Inspection.docx` is policy 6040. A bare number that is also a
+  live policy number is never treated as a form.
+- **Links are stored by policy number, resolved lazily.** A form mapped to a policy the
+  library does not hold yet is still catalogued, and attaches itself the moment that policy
+  record exists — no re-upload, no migration.
+
+Matching is by number, not title, so the tracker's spelling differences from the library
+(`EMPLOYEE INFECTION CONTROL` vs `EMPLOYEE INFECTIOIN CONTROL` on 8003) are irrelevant.
+
+To load a newer tracker export: replace `data/policy-form-map.json` and run
+`node scripts/build-form-map.js`.
+
 **Naming convention that makes this near-100%:** `{policy number} {title} {version}.ext`,
 e.g. `11004 Medication Variance v3.0.docx`. Worth circulating before the first bulk load.
 

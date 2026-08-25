@@ -115,6 +115,42 @@ const byId = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const riskBadge = n => `<span class="riskbadge r${n}" title="Enterprise Risk Level ${n}">${n}</span>`;
 const formsForPolicy = num => CONTROLLED_FORMS.filter(f => (f.policies || []).includes(String(num)));
+
+/* Every form a policy points at, controlled or still expected from the
+   tracker, in one list so the library, the record modal, and the TOC panel
+   all show the same thing. */
+function policyFormEntries(p) {
+  const controlled = formsForPolicy(p.policy);
+  const ids = new Set(controlled.map(f => String(f.id)));
+  return [
+    ...controlled.map(f => ({id: String(f.id), form: f, controlled: true})),
+    ...(p.forms || []).map(String).filter(id => !ids.has(id)).map(id => ({id, form: null, controlled: false}))
+  ];
+}
+
+/* Opens whichever it is: the controlled form, or a record of a form the
+   tracker expects that nobody has uploaded yet. */
+function openLinkedForm(id) {
+  const f = CONTROLLED_FORMS.find(x => String(x.id) === String(id));
+  if (f) { openForm(f.id); return; }
+  const mapped = mappedPoliciesFor(String(id));
+  openDocViewer({
+    title: `Form ${id}`,
+    subtitle: 'Expected from the enterprise tracker — not yet uploaded',
+    file: null,
+    linkedPolicies: mapped.indexes,
+    meta: [
+      ['Status', '<span class="status pending">Not yet uploaded</span>'],
+      ['Form number', esc(String(id))],
+      ['Listed under', esc(FORM_TITLES.get(String(id)) || 'Enterprise policy tracker')],
+      ['Policies it serves', mapped.numbers.length ? esc(mapped.numbers.join(', ')) : '<span class="subtle">—</span>']
+    ],
+    versions: [],
+    placeholder: `<div class="paper"><div class="watermark">NOT UPLOADED</div><div class="paperhead"><h4>Form ${esc(String(id))}</h4><div class="subtle">Expected by the enterprise policy tracker</div></div>
+<p>The tracker lists this form against ${mapped.numbers.length ? `polic${mapped.numbers.length === 1 ? 'y' : 'ies'} <b>${esc(mapped.numbers.join(', '))}</b>` : 'this policy'}, but the controlled document has not been uploaded yet.</p>
+<p class="subtle">Ask a policy administrator to upload it — once it arrives it links itself to every policy the tracker lists and opens here.</p></div>`
+  });
+}
 let currentSection = '';
 
 /* ------------------------------------------------------------- access
@@ -220,10 +256,9 @@ function renderPolicyTable() {
     (!sec || p.section === sec));
   byId('policyCount').textContent = `${data.length} records`;
   byId('policyRows').innerHTML = data.length ? data.slice(0, 150).map(({p, idx}, i) => {
-    const linked = formsForPolicy(p.policy).map(f => f.id).concat((p.forms || []).map(String));
-    const uniq = [...new Set(linked)];
+    const entries = policyFormEntries(p);
     const pending = pendingCount(idx);
-    return `<tr><td>${riskBadge(p.risk)}</td><td><div class="policytitle" onclick="openPolicy(${idx})">${esc(p.policy)} · ${esc(p.title)}</div><div class="subtle">${esc(p.section)}${p.provisional ? ' · <span class="status pending">Provisional — from tracker mapping</span>' : ''}${pending ? ` · <span class="status pendingpill">${pending} pending upload${pending === 1 ? '' : 's'}</span>` : ''}</div></td><td>${esc(p.regulatory || 'Corporate')}</td><td>${uniq.length ? uniq.map(f => `<span class="tag">${esc(f)}</span>`).join('') : '—'}</td><td>${statusFor(p, i)}</td><td><button class="btn outline touchbtn" onclick="openPolicy(${idx})">Open</button></td></tr>`;
+    return `<tr><td>${riskBadge(p.risk)}</td><td><div class="policytitle" onclick="openPolicy(${idx})">${esc(p.policy)} · ${esc(p.title)}</div><div class="subtle">${esc(p.section)}${p.provisional ? ' · <span class="status pending">Provisional — from tracker mapping</span>' : ''}${pending ? ` · <span class="status pendingpill">${pending} pending upload${pending === 1 ? '' : 's'}</span>` : ''}</div></td><td>${esc(p.regulatory || 'Corporate')}</td><td>${entries.length ? entries.map(e => `<button class="doclink${e.controlled ? '' : ' expected'}" style="padding:4px 7px;margin:2px 3px 2px 0" title="${e.controlled ? 'Open the controlled form' : 'Expected from the tracker — not yet uploaded'}" onclick="openLinkedForm('${esc(e.id)}')">${esc(e.id)}</button>`).join('') : '—'}</td><td>${statusFor(p, i)}</td><td><button class="btn outline touchbtn" onclick="openPolicy(${idx})">Open</button></td></tr>`;
   }).join('') : '<tr><td colspan="6" class="subtle" style="text-align:center;padding:26px">No policies match the current filters.</td></tr>';
 }
 function resetLibraryFilters() {
@@ -245,13 +280,16 @@ function filterSection(s) {
 function openPolicy(idx) {
   const p = POLICIES[idx];
   if (!p) return;
-  const linked = formsForPolicy(p.policy);
-  const trackerOnly = (p.forms || []).map(String).filter(id => !linked.some(f => f.id === id));
-  const formList = linked.map(f => `${f.id} · ${f.name} (${f.version})`).concat(trackerOnly.map(id => `Form ${id} (tracker reference)`));
+  const entries = policyFormEntries(p);
+  const formList = entries.map(e => e.controlled
+    ? `<div class="form-info-card" style="padding:9px 11px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div><b>${esc(e.form.id)} · ${esc(e.form.name)}</b><div class="subtle">${esc(e.form.version)} · ${esc(e.form.file)} · Owner: ${esc(e.form.owner)}</div></div><button class="btn primary" style="padding:6px 11px;font-size:11px" onclick="byId('policyModal').classList.remove('show');openLinkedForm('${esc(e.id)}')">Open Form</button></div></div>`
+    : `<div class="form-info-card" style="padding:9px 11px;background:#fbfcfd"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div><b>Form ${esc(e.id)}</b><div class="subtle">Expected from the tracker — not yet uploaded</div></div><button class="btn outline" style="padding:6px 11px;font-size:11px" onclick="byId('policyModal').classList.remove('show');openLinkedForm('${esc(e.id)}')">View</button></div></div>`);
   byId('modalContent').innerHTML = `<div style="display:flex;justify-content:space-between;gap:15px;align-items:start"><div><div class="subtle">${esc(p.section)}</div><h3>${esc(p.policy)} · ${esc(p.title)}</h3></div>${riskBadge(p.risk)}</div>
 <div class="risk-legend"><span class="r${p.risk}">Risk ${p.risk}: ${esc(p.basis || 'Enterprise risk classification')}</span><span style="background:#175c92">${esc(p.regulatory || 'Corporate')}</span></div>
 <div class="formrow"><div class="field"><label>Owner</label><input value="Corporate Policy Administrator" readonly></div><div class="field"><label>Next Review</label><input value="09/30/2026" readonly></div></div>
-<div class="docpreview"><b>Controlled Policy Preview</b><p>This prototype connects the enterprise policy record to its controlled document, associated forms, revision history, and employee acknowledgements. The production system would render the approved PDF/DOCX here and prevent obsolete versions from being used.</p><p><b>Associated forms:</b> ${formList.length ? formList.map(esc).join(', ') : 'None listed in tracker'}</p><p><b>Notification rule:</b> Any approved revision creates a group notification and re-acknowledgement task for the assigned audience.</p></div>
+<div class="docpreview"><b>Controlled Policy Preview</b><p>This prototype connects the enterprise policy record to its controlled document, associated forms, revision history, and employee acknowledgements. The production system would render the approved PDF/DOCX here and prevent obsolete versions from being used.</p><p><b>Notification rule:</b> Any approved revision creates a group notification and re-acknowledgement task for the assigned audience.</p></div>
+<div style="margin-top:14px"><div class="panelhead" style="margin-bottom:6px"><h4 style="font-size:15px">Forms Attached To This Policy</h4><span class="pill">${formList.length} linked</span></div>${formList.length ? formList.join('') : '<div class="subtle" style="padding:14px;text-align:center">No forms are linked to this policy.</div>'}</div>
+<div style="display:none"></div>
 <div class="readtrack"><div><b>84%</b><span class="subtle">Acknowledged</span></div><div><b>118</b><span class="subtle">Assigned</span></div><div><b>19</b><span class="subtle">Outstanding</span></div></div>
 <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px"><button class="btn outline touchbtn" onclick="byId('policyModal').classList.remove('show');openVersionHistory(${idx})">Version History</button><button class="btn primary touchbtn" onclick="acknowledge('${esc(p.policy)}')">Acknowledge Policy</button></div>`;
   byId('policyModal').classList.add('show');

@@ -4,7 +4,7 @@ Front-end prototype of the Freedom Behavioral enterprise policy governance porta
 
 ## Scope
 
-Six primary menu options are built out. **Non-administrators see only the first three** — Dashboard, Policy & Form Library, and Table of Contents; the rest are administrator-only, as is every action that changes controlled content (upload, publish, assign, manage forms and users). Use the **Preview as** control in the top bar to see the portal as any security role.
+Six primary menu options are built out. **Non-administrators see only the first three** — Dashboard, Policy & Form Library, and Table of Contents; the rest are administrator-only, as is every action that changes controlled content (upload, publish, assign, manage forms and users). Staff keep full read access to policies and to every form attached to them — openable from the library table, the policy record, and the TOC panel. Use the **Preview as** control in the top bar to see the portal as any security role.
 
 1. **Dashboard** — enterprise KPIs, risk 1–5 distribution (touch a risk level to filter the library), and recent policy activity.
 2. **Policy & Form Library** — searchable/filterable table of the 379 controlled policy records, with regulatory driver, associated forms, control status, and a controlled-policy record modal. Includes **bulk upload**: drag a folder or select many files, per-file validation and fingerprint dedupe, automatic matching to a policy by filename, and a staged ingest with per-file progress.

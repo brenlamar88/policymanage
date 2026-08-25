@@ -46,6 +46,7 @@ The prototype is front-end only; the backing platform is planned in:
 - [`docs/data-model.md`](docs/data-model.md) — recommended stack, table map, scale math, search, security, retention, build phases.
 - [`docs/file-uploads.md`](docs/file-uploads.md) — accepted file types, ingestion pipeline, storage layout, versioning, PHI boundary.
 - [`db/schema.sql`](db/schema.sql) — Postgres DDL (verified against PostgreSQL 16).
+- [`docs/sign-in-setup.md`](docs/sign-in-setup.md) — what Freedom IT and the build each have to do before anyone can log in.
 
 ## Notes
 

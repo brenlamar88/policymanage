@@ -46,7 +46,7 @@ Serve the page over http (`npx serve .`) rather than opening the file directly â
 > grants the anonymous role full read and write. Anyone with the project URL and the
 > publishable key can read and change everything, and no acknowledgement recorded in this
 > window identifies a person. Keep the URL private, keep confidential content out, and run
-> `db/dev-open-access-revert.sql` as soon as sign-in works.
+> `db/dev-open-access-revert.sql` and `db/storage-dev-access-revert.sql` as soon as sign-in works.
 
 ## Seeded accounts
 

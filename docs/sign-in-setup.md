@@ -50,8 +50,13 @@ have been applied to a clean PostgreSQL 16 as a check.
 Regenerate the seed after changing the prototype's data or the tracker mapping:
 `node scripts/build-seed-sql.js`.
 
-Then create four private storage buckets: `policy-source`, `policy-rendered`,
-`form-template`, `quarantine`.
+**Storage.** Either create the four buckets by hand in Dashboard → Storage → New bucket
+(`policy-source`, `policy-rendered`, `form-template`, `quarantine`, all with **Public
+bucket off**), or run [`db/storage-buckets.sql`](../db/storage-buckets.sql), which also
+sets the size limits and accepted types from §1. Then run
+[`db/storage-dev-access.sql`](../db/storage-dev-access.sql) so the app can upload before
+sign-in exists — and [`db/storage-dev-access-revert.sql`](../db/storage-dev-access-revert.sql)
+when it does.
 
 1. Authentication → Providers → **Azure**: enable, paste client ID and secret, set
    Azure Tenant URL to `https://login.microsoftonline.com/<tenant-id>`.

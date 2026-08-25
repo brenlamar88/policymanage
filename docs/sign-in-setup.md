@@ -41,6 +41,7 @@ have been applied to a clean PostgreSQL 16 as a check.
 | Order | File | What it does |
 |---|---|---|
 | 1 | [`db/schema.sql`](../db/schema.sql) | 22 tables, indexes, audit partitions |
+| 1a | [`db/align.sql`](../db/align.sql) | **Only if the database was built from an earlier schema** — adds `policy_expected_form`, the security-role and Entra columns on `app_user`, and the section/risk targets on `assignment_rule`. A no-op on a current database, so running it is always safe |
 | 2 | [`db/seed.sql`](../db/seed.sql) | 17 sections, 13 facilities, 26 departments, 44 hospital roles, 379 policies, 166 expected form links, 29 users |
 | 3 | [`db/rls.sql`](../db/rls.sql) | Row Level Security — 41 policies |
 

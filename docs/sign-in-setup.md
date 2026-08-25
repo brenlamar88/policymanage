@@ -44,6 +44,8 @@ have been applied to a clean PostgreSQL 16 as a check.
 | 1a | [`db/align.sql`](../db/align.sql) | **Only if the database was built from an earlier schema** — adds `policy_expected_form`, the security-role and Entra columns on `app_user`, and the section/risk targets on `assignment_rule`. A no-op on a current database, so running it is always safe |
 | 2 | [`db/seed.sql`](../db/seed.sql) | 17 sections, 13 facilities, 26 departments, 44 hospital roles, 379 policies, 166 expected form links, 29 users |
 | 3 | [`db/rls.sql`](../db/rls.sql) | Row Level Security — 41 policies |
+| 4 | [`db/migrations/002_form_audience.sql`](../db/migrations/002_form_audience.sql) | Columns Forms Management writes back |
+| 5 | [`db/dev-open-access.sql`](../db/dev-open-access.sql) | **Temporary** — lets the app read and write before sign-in exists. See the warning in the file, and undo it with `dev-open-access-revert.sql` the day sign-in works |
 
 Regenerate the seed after changing the prototype's data or the tracker mapping:
 `node scripts/build-seed-sql.js`.

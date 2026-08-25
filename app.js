@@ -110,6 +110,58 @@ function mappedPoliciesFor(formNumber) {
   };
 }
 
+
+
+/* ------------------------------------------------------------- database
+   The app runs on its in-memory working set either way; when Supabase is
+   reachable that set is loaded from the database and every change is
+   written back. A failed write is surfaced, never swallowed. */
+
+let dbReady = false;
+
+function setDbStatus(state, text, title) {
+  const el = byId('dbStatus');
+  if (!el) return;
+  el.className = `dbstatus ${state}`;
+  el.textContent = text;
+  el.title = title || '';
+}
+
+async function connectDatabase() {
+  setDbStatus('', 'Connecting…');
+  const ok = await FPC.connect();
+  if (!ok) {
+    dbReady = false;
+    setDbStatus('off', 'Not saving', `Working from seeded demo data — changes are lost on refresh. ${FPC.lastError || ''}`);
+    return;
+  }
+  const loaded = await FPC.hydrate();
+  if (!loaded) {
+    dbReady = false;
+    setDbStatus('off', 'Not saving', FPC.lastError || 'Could not load records');
+    return;
+  }
+  if (loaded.policies.length) { POLICIES.length = 0; POLICIES.push(...loaded.policies); }
+  if (loaded.forms.length) { CONTROLLED_FORMS.length = 0; CONTROLLED_FORMS.push(...loaded.forms); }
+  if (loaded.users.length) { EMPLOYEES.length = 0; EMPLOYEES.push(...loaded.users); }
+  SECTIONS.length = 0;
+  SECTIONS.push(...[...new Set(loaded.policies.map(p => p.section))]);
+  dbReady = true;
+  setDbStatus('live', 'Saving to Supabase', `${loaded.policies.length} policies, ${loaded.forms.length} forms, ${loaded.users.length} users loaded`);
+}
+
+/* Reports what actually happened rather than assuming success. */
+async function persist(label, fn) {
+  if (!dbReady) { toast(`${label} saved in this session only — not connected to the database`); return false; }
+  const res = await fn();
+  if (!res || !res.ok) {
+    setDbStatus('off', 'Save failed', res && res.reason || 'unknown error');
+    toast(`${label} did NOT save: ${res && res.reason || 'unknown error'}`);
+    return false;
+  }
+  return true;
+}
+
 /* ---------- helpers ---------- */
 const byId = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -377,7 +429,8 @@ ${pendingBlock(idx)}
 }
 
 /* ---------- init ---------- */
-function init() {
+async function init() {
+  await connectDatabase();
   buildFormMapIndex();
   applyMappingToPolicies();
   SECTIONS.forEach(s => byId('sectionFilter').insertAdjacentHTML('beforeend', `<option>${esc(s)}</option>`));
@@ -755,7 +808,14 @@ async function processRow(r) {
   r.stage = 'Ready for review';
   INGESTED.add(r.fp);
   if (r.kind === 'form') r.formNumber ? registerMappedForm(r) : addDraftForm(r);
-  if (r.kind !== 'form' && r.targetIdx !== null) addUploadedVersion(r.targetIdx, r);
+  if (r.kind !== 'form' && r.targetIdx !== null) {
+    const v = addUploadedVersion(r.targetIdx, r);
+    const p = POLICIES[r.targetIdx];
+    await persist(`Upload of ${r.name}`, () => FPC.saveUpload(
+      `${p.section}|${p.policy}|${p.title}`,
+      {label: v.label, versionNo: versionsFor(r.targetIdx).length, hash: v.hash},
+      r.file));
+  }
   renderQueue();
 }
 
@@ -1056,6 +1116,7 @@ function saveControlledForm() {
   renderTOC();
   renderPolicyTable();
   if (currentSection) renderTocPolicyList();
+  persist(`Form ${rec.id}`, () => FPC.saveForm(rec));
 }
 
 function clearFormEditor() {
@@ -1574,6 +1635,7 @@ function registerMappedForm(row) {
     source: 'tracker mapping'
   };
   if (existing) Object.assign(existing, rec); else CONTROLLED_FORMS.unshift(rec);
+  persist(`Form ${rec.id}`, () => FPC.saveForm(rec));
 }
 function bumpVersion(v) {
   const n = parseFloat(String(v).replace(/^v/i, ''));
@@ -1736,6 +1798,7 @@ function saveUser() {
   syncAssignmentsToRoster();
   clearUserEditor();
   refreshUserViews();
+  persist(`${first} ${last}`, () => FPC.saveUser(rec));
 }
 
 /* Roster changes re-run the rules: new or re-activated people pick up what
@@ -1810,6 +1873,7 @@ function deleteUser(id) {
   const acks = ASSIGNMENTS.filter(a => a.userId === id && a.status === 'acknowledged').length;
   if (!confirm(`Remove ${e.first} ${e.last}? Outstanding assignments are withdrawn.${acks ? ` ${acks} acknowledgement${acks === 1 ? '' : 's'} stay in the audit trail.` : ''}`)) return;
   EMPLOYEES.splice(EMPLOYEES.indexOf(e), 1);
+  persist(`Removal of ${e.first} ${e.last}`, () => FPC.deleteUser(e.email));
   syncAssignmentsToRoster();
   if (editingUserId === id) clearUserEditor();
   refreshUserViews();

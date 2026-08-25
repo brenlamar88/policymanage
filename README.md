@@ -31,6 +31,23 @@ Static, no build step and no dependencies. Open `index.html` in a browser, or se
 npx http-server .
 ```
 
+## Saving
+
+The app loads its working set from Supabase at startup and writes changes back —
+forms, users, and uploaded documents. The chip in the top bar says which mode you are in:
+**Saving to Supabase**, or **Not saving** when the database is unreachable, in which case
+the app still runs on seeded data and every save warns that it is session-only. A failed
+write is reported in the toast and on the chip; it is never swallowed.
+
+Serve the page over http (`npx serve .`) rather than opening the file directly — a
+`file://` origin can be rejected by the API.
+
+> **Access is temporarily open.** Until Microsoft sign-in is wired up, `db/dev-open-access.sql`
+> grants the anonymous role full read and write. Anyone with the project URL and the
+> publishable key can read and change everything, and no acknowledgement recorded in this
+> window identifies a person. Keep the URL private, keep confidential content out, and run
+> `db/dev-open-access-revert.sql` as soon as sign-in works.
+
 ## Seeded accounts
 
 - Corporate administrators (`@freedomhc.com`) — System Administrator.

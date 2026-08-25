@@ -4,7 +4,7 @@ Front-end prototype of the Freedom Behavioral enterprise policy governance porta
 
 ## Scope
 
-Five primary menu options are visible and built out:
+Six primary menu options are visible and built out:
 
 1. **Dashboard** — enterprise KPIs, risk 1–5 distribution (touch a risk level to filter the library), and recent policy activity.
 2. **Policy & Form Library** — searchable/filterable table of the 379 controlled policy records, with regulatory driver, associated forms, control status, and a controlled-policy record modal. Includes **bulk upload**: drag a folder or select many files, per-file validation and fingerprint dedupe, automatic matching to a policy by filename, and a staged ingest with per-file progress.
@@ -12,7 +12,9 @@ Five primary menu options are visible and built out:
 4. **Table of Contents** — the 17 enterprise TOC sections as clickable cards plus a Quick TOC in the sidebar; selecting a section opens the full list of its policies (with an in-section filter), and selecting a policy shows its current information and every linked form.
 5. **Assign Policies** — the admin side writes assignment rules (a policy, a TOC section, a risk band, or a form → facilities / departments / roles, with a due window and delivery rule) and each rule materializes one assignment per matching employee; the staff side is *My Assigned Policies*, where required reading is acknowledged with a timestamp.
 
-Other modules from the original concept (Notification Center, Review Analytics, AI Regulatory Watch, Admin, Roles & Groups, Audit Trail) are intentionally not part of this build.
+6. **User Management** (Security & Administration) — the directory of everyone with access: add and edit users, set the security role that governs system permissions, and set the hospital role, department, and facility that drive policy assignment. Roster changes re-run the assignment rules, so a new hire picks up what they are owed and a departing one stops owing anything outstanding.
+
+Other modules from the original concept (Notification Center, Review Analytics, AI Regulatory Watch, Audit Trail) are intentionally not part of this build.
 
 ## Files
 

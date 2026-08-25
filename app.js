@@ -323,6 +323,15 @@ function init() {
   seedAssignments();
   renderAssignments();
   renderMappingCoverage();
+  fillMulti('userFacility', FORM_FACILITIES);
+  fillMulti('userRoles', FORM_ROLES);
+  fillMulti('userDepartments', FORM_DEPTS);
+  byId('userSecurityRole').innerHTML = SECURITY_ROLES.map(r => `<option>${esc(r.name)}</option>`).join('');
+  byId('userRoleFilter').insertAdjacentHTML('beforeend', SECURITY_ROLES.map(r => `<option>${esc(r.name)}</option>`).join(''));
+  renderSecurityRoles();
+  renderUsers();
+  renderUserPreview();
+  renderSignedInUser();
 }
 document.addEventListener('DOMContentLoaded', init);
 
@@ -1098,20 +1107,22 @@ function renderForms() {
    ======================================================================== */
 
 const EMPLOYEES = [
-  {id:'FB-10001', first:'Jordan', last:'Rivera', email:'jordan.rivera@freedombehavioral.com', facility:'Enterprise / Corporate', departments:['Compliance / Risk','Quality / Performance Improvement'], roles:['Corporate Compliance Officer'], status:'Active'},
-  {id:'FB-10482', first:'Morgan', last:'Reed', email:'morgan.reed@freedombehavioral.com', facility:'Freedom Lake Charles', departments:['Nursing'], roles:['Registered Nurse'], status:'Active'},
-  {id:'FB-10614', first:'Taylor', last:'Brooks', email:'taylor.brooks@freedombehavioral.com', facility:'Freedom Monroe', departments:['Nursing'], roles:['Behavioral Health Technician / MHT'], status:'Active'},
-  {id:'FB-10133', first:'Casey', last:'Martin', email:'casey.martin@freedombehavioral.com', facility:'Freedom DeQuincy', departments:['Quality / Performance Improvement','Compliance / Risk'], roles:['Quality / Performance Improvement Director'], status:'Active'},
-  {id:'FB-10220', first:'Avery', last:'Nguyen', email:'avery.nguyen@freedombehavioral.com', facility:'Freedom Monroe', departments:['Nursing'], roles:['Director of Nursing'], status:'Active'},
-  {id:'FB-10318', first:'Riley', last:'Thompson', email:'riley.thompson@freedombehavioral.com', facility:'Freedom Leesville', departments:['Clinical / Therapy'], roles:['Therapist / LCSW / LPC'], status:'Active'},
-  {id:'FB-10405', first:'Jamie', last:'Fontenot', email:'jamie.fontenot@freedombehavioral.com', facility:'Freedom Lake Charles', departments:['Pharmacy / Medication Management'], roles:['Pharmacy Director / Pharmacist'], status:'Active'},
-  {id:'FB-10511', first:'Drew', last:'Landry', email:'drew.landry@freedombehavioral.com', facility:'Freedom Minden', departments:['Environment of Care','Life Safety'], roles:['Environment of Care / Safety Officer'], status:'Active'},
-  {id:'FB-10627', first:'Sam', last:'Guidry', email:'sam.guidry@freedombehavioral.com', facility:'Freedom Bunkie', departments:['Transportation'], roles:['Transportation / Driver'], status:'Active'},
-  {id:'FB-10704', first:'Quinn', last:'Adams', email:'quinn.adams@freedombehavioral.com', facility:'Freedom Greenville', departments:['HIM / Medical Records'], roles:['HIM / Medical Records Director'], status:'Active'},
-  {id:'FB-10812', first:'Alex', last:'Boudreaux', email:'alex.boudreaux@freedombehavioral.com', facility:'Freedom Plainview', departments:['Human Resources'], roles:['Human Resources Director'], status:'Active'},
-  {id:'FB-10905', first:'Peyton', last:'Hebert', email:'peyton.hebert@freedombehavioral.com', facility:'Freedom Ferriday', departments:['Central Intake / Admissions'], roles:['Intake Coordinator'], status:'Active'},
-  {id:'FB-11002', first:'Reese', last:'Doucet', email:'reese.doucet@freedombehavioral.com', facility:'Freedom Bastrop', departments:['Nursing'], roles:['Registered Nurse'], status:'Active'},
-  {id:'FB-11110', first:'Skyler', last:'Comeaux', email:'skyler.comeaux@freedombehavioral.com', facility:'Freedom Ville Platte', departments:['Dietary'], roles:['Dietary Director'], status:'Inactive'}
+  {id:'FB-10001', first:'Bren', last:'Roberts', email:'broberts@freedomhc.com', facility:'Enterprise / Corporate', departments:['Administration','IT / Security'], roles:['IT / Systems Administrator'], securityRole:'System Administrator', status:'Active'},
+  {id:'FB-10002', first:'S.', last:'Chisholm', email:'schisholm@freedomhc.com', facility:'Enterprise / Corporate', departments:['Administration'], roles:[], securityRole:'System Administrator', status:'Active'},
+  {id:'FB-10003', first:'J.', last:'Reed', email:'jreed@freedomhc.com', facility:'Enterprise / Corporate', departments:['Administration'], roles:[], securityRole:'System Administrator', status:'Active'},
+  {id:'FB-10482', first:'Morgan', last:'Reed', email:'morgan.reed@freedombehavioral.com', facility:'Freedom Lake Charles', departments:['Nursing'], roles:['Registered Nurse'], securityRole:'Employee', status:'Active'},
+  {id:'FB-10614', first:'Taylor', last:'Brooks', email:'taylor.brooks@freedombehavioral.com', facility:'Freedom Monroe', departments:['Nursing'], roles:['Behavioral Health Technician / MHT'], securityRole:'Employee', status:'Active'},
+  {id:'FB-10133', first:'Casey', last:'Martin', email:'casey.martin@freedombehavioral.com', facility:'Freedom DeQuincy', departments:['Quality / Performance Improvement','Compliance / Risk'], roles:['Quality / Performance Improvement Director'], securityRole:'Policy Owner', status:'Active'},
+  {id:'FB-10220', first:'Avery', last:'Nguyen', email:'avery.nguyen@freedombehavioral.com', facility:'Freedom Monroe', departments:['Nursing'], roles:['Director of Nursing'], securityRole:'Manager', status:'Active'},
+  {id:'FB-10318', first:'Riley', last:'Thompson', email:'riley.thompson@freedombehavioral.com', facility:'Freedom Leesville', departments:['Clinical / Therapy'], roles:['Therapist / LCSW / LPC'], securityRole:'Employee', status:'Active'},
+  {id:'FB-10405', first:'Jamie', last:'Fontenot', email:'jamie.fontenot@freedombehavioral.com', facility:'Freedom Lake Charles', departments:['Pharmacy / Medication Management'], roles:['Pharmacy Director / Pharmacist'], securityRole:'Manager', status:'Active'},
+  {id:'FB-10511', first:'Drew', last:'Landry', email:'drew.landry@freedombehavioral.com', facility:'Freedom Minden', departments:['Environment of Care','Life Safety'], roles:['Environment of Care / Safety Officer'], securityRole:'Policy Owner', status:'Active'},
+  {id:'FB-10627', first:'Sam', last:'Guidry', email:'sam.guidry@freedombehavioral.com', facility:'Freedom Bunkie', departments:['Transportation'], roles:['Transportation / Driver'], securityRole:'Employee', status:'Active'},
+  {id:'FB-10704', first:'Quinn', last:'Adams', email:'quinn.adams@freedombehavioral.com', facility:'Freedom Greenville', departments:['HIM / Medical Records'], roles:['HIM / Medical Records Director'], securityRole:'Policy Owner', status:'Active'},
+  {id:'FB-10812', first:'Alex', last:'Boudreaux', email:'alex.boudreaux@freedombehavioral.com', facility:'Freedom Plainview', departments:['Human Resources'], roles:['Human Resources Director'], securityRole:'Policy Administrator', status:'Active'},
+  {id:'FB-10905', first:'Peyton', last:'Hebert', email:'peyton.hebert@freedombehavioral.com', facility:'Freedom Ferriday', departments:['Central Intake / Admissions'], roles:['Intake Coordinator'], securityRole:'Employee', status:'Active'},
+  {id:'FB-11002', first:'Reese', last:'Doucet', email:'reese.doucet@freedombehavioral.com', facility:'Freedom Bastrop', departments:['Nursing'], roles:['Registered Nurse'], securityRole:'Employee', status:'Active'},
+  {id:'FB-11110', first:'Skyler', last:'Comeaux', email:'skyler.comeaux@freedombehavioral.com', facility:'Freedom Ville Platte', departments:['Dietary'], roles:['Dietary Director'], securityRole:'Manager', status:'Inactive'}
 ];
 const CURRENT_USER_ID = 'FB-10001';
 const currentUser = () => EMPLOYEES.find(e => e.id === CURRENT_USER_ID);
@@ -1508,4 +1519,193 @@ function addMappedPolicies() {
   renderForms();
   renderMappingCoverage();
   toast(`${missing.length} provisional policy records added from the tracker mapping`);
+}
+
+
+/* ==================================================== user administration
+   The directory of everyone with access. Security role governs what a
+   person can do in the system; hospital role and department govern which
+   policies they are assigned. Changing either keeps assignments in step.
+   ======================================================================== */
+
+const SECURITY_ROLES = [
+  {name: 'System Administrator', level: 'Highest', admin: true,  can: 'Users, roles, integrations, and security settings'},
+  {name: 'Policy Administrator', level: 'Elevated', admin: true, can: 'Create, edit, route, and publish policies and forms'},
+  {name: 'Policy Owner',         level: 'Scoped',  admin: false, can: 'Draft and update the content they own'},
+  {name: 'Approver',             level: 'Scoped',  admin: false, can: 'Approve controlled revisions before publication'},
+  {name: 'Manager',              level: 'Manager', admin: false, can: 'See team completion and send reminders'},
+  {name: 'Employee',             level: 'Standard',admin: false, can: 'Read, search, and acknowledge assigned content'},
+  {name: 'Survey / Read-Only',   level: 'Read only', admin: false, can: 'Time-limited evidence access for surveyors'}
+];
+const isAdminRole = name => !!SECURITY_ROLES.find(r => r.name === name && r.admin);
+const securityRoleOf = e => e.securityRole || 'Employee';
+let editingUserId = null;
+
+function renderSignedInUser() {
+  const me = currentUser();
+  if (!me) return;
+  byId('meInitials').textContent = (me.first[0] || '') + (me.last[0] || '');
+  byId('meName').textContent = `${me.first} ${me.last}`;
+  byId('meRole').textContent = securityRoleOf(me);
+}
+
+function renderSecurityRoles() {
+  byId('roleGrid').innerHTML = SECURITY_ROLES.map(r => {
+    const held = EMPLOYEES.filter(e => securityRoleOf(e) === r.name).length;
+    const cls = r.level === 'Highest' ? 'overdue' : r.admin || r.level === 'Scoped' ? 'pending' : 'good';
+    return `<div class="rolecard"><span class="status ${cls} lvl">${esc(r.level)}</span><b>${esc(r.name)}</b><p>${esc(r.can)}</p><p><b>${held}</b> ${held === 1 ? 'person' : 'people'}</p></div>`;
+  }).join('');
+}
+
+function userAssignmentCount(id) {
+  return ASSIGNMENTS.filter(a => a.userId === id).length;
+}
+
+function renderUserPreview() {
+  const host = byId('userPreview');
+  if (!host) return;
+  const roles = selectedValues('userRoles'), depts = selectedValues('userDepartments');
+  const draft = {status: 'Active', facility: byId('userFacility').value, roles, departments: depts};
+  const hits = RULES.filter(r => r.active && matchEmployees(r).length &&
+    (!r.facilities.length || r.facilities.includes(draft.facility)) &&
+    (!r.departments.length || overlaps(r.departments, depts)) &&
+    (!r.roles.length || overlaps(r.roles, roles)));
+  const policies = new Set();
+  hits.forEach(r => rulePolicyIndexes(r).forEach(i => policies.add(i)));
+  host.innerHTML = `<div class="grouplabel">What this person will be assigned</div>
+<div class="linkmatrix"><div><b>${hits.length}</b><span class="subtle">Rules matched</span></div><div><b>${policies.size}</b><span class="subtle">Policies</span></div><div><b>${roles.length + depts.length}</b><span class="subtle">Role/dept tags</span></div></div>
+<div class="subtle" style="margin-top:7px">${hits.length ? 'Assignments are created on save and stay in step when the role or department changes.' : 'No assignment rule targets this audience yet — the user will have system access but no required reading.'}</div>`;
+}
+
+function saveUser() {
+  const id = (byId('userId').value || '').trim();
+  const first = (byId('userFirst').value || '').trim();
+  const last = (byId('userLast').value || '').trim();
+  const email = (byId('userEmail').value || '').trim();
+  if (!id || !first || !last || !email) { toast('Employee ID, first name, last name, and email are required'); return; }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast('That email address does not look valid'); return; }
+  if (EMPLOYEES.some(e => e.id === id && e.id !== editingUserId)) { toast(`Employee ID ${id} is already in use`); return; }
+  if (EMPLOYEES.some(e => e.email.toLowerCase() === email.toLowerCase() && e.id !== editingUserId)) { toast(`${email} already has an account`); return; }
+  const rec = {
+    id, first, last, email,
+    facility: byId('userFacility').value,
+    roles: selectedValues('userRoles'),
+    departments: selectedValues('userDepartments'),
+    securityRole: byId('userSecurityRole').value,
+    status: byId('userStatus').value
+  };
+  const existing = EMPLOYEES.find(e => e.id === editingUserId);
+  if (existing) { Object.assign(existing, rec); toast(`${first} ${last} updated`); }
+  else { EMPLOYEES.push(rec); toast(`${first} ${last} added as ${rec.securityRole}`); }
+  syncAssignmentsToRoster();
+  clearUserEditor();
+  refreshUserViews();
+}
+
+/* Roster changes re-run the rules: new or re-activated people pick up what
+   they are owed, and people who leave stop owing anything outstanding. */
+function syncAssignmentsToRoster() {
+  RULES.filter(r => r.active).forEach(materialize);
+  const inactive = new Set(EMPLOYEES.filter(e => e.status !== 'Active').map(e => e.id));
+  const known = new Set(EMPLOYEES.map(e => e.id));
+  for (let i = ASSIGNMENTS.length - 1; i >= 0; i--) {
+    const a = ASSIGNMENTS[i];
+    if ((inactive.has(a.userId) || !known.has(a.userId)) && a.status === 'open') ASSIGNMENTS.splice(i, 1);
+  }
+}
+
+function refreshUserViews() {
+  renderUsers();
+  renderSecurityRoles();
+  renderAssignments();
+  renderSignedInUser();
+}
+
+function clearUserEditor() {
+  editingUserId = null;
+  byId('userEditorTitle').textContent = 'Add User';
+  ['userId','userFirst','userLast','userEmail'].forEach(id => byId(id).value = '');
+  byId('userStatus').value = 'Active';
+  byId('userSecurityRole').value = 'Employee';
+  byId('userFacility').value = FORM_FACILITIES[0];
+  ['userRoles','userDepartments'].forEach(id => selectAllMulti(id, false));
+  renderUserPreview();
+}
+
+function editUser(id) {
+  const e = EMPLOYEES.find(x => x.id === id);
+  if (!e) return;
+  editingUserId = id;
+  byId('userEditorTitle').textContent = `Editing ${e.first} ${e.last}`;
+  byId('userId').value = e.id;
+  byId('userFirst').value = e.first;
+  byId('userLast').value = e.last;
+  byId('userEmail').value = e.email;
+  byId('userStatus').value = e.status;
+  byId('userSecurityRole').value = securityRoleOf(e);
+  byId('userFacility').value = e.facility;
+  setMultiSelection('userRoles', e.roles);
+  setMultiSelection('userDepartments', e.departments);
+  renderUserPreview();
+  window.scrollTo({top: 0, behavior: 'smooth'});
+  toast(`${e.first} ${e.last} loaded for editing`);
+}
+
+function toggleUser(id) {
+  const e = EMPLOYEES.find(x => x.id === id);
+  if (!e) return;
+  if (e.id === CURRENT_USER_ID) { toast('You cannot deactivate the account you are signed in as'); return; }
+  if (e.status === 'Active' && isAdminRole(securityRoleOf(e)) && activeAdmins().length <= 1) {
+    toast('At least one active administrator must remain'); return;
+  }
+  e.status = e.status === 'Active' ? 'Inactive' : 'Active';
+  syncAssignmentsToRoster();
+  refreshUserViews();
+  toast(`${e.first} ${e.last} marked ${e.status}`);
+}
+
+const activeAdmins = () => EMPLOYEES.filter(e => e.status === 'Active' && isAdminRole(securityRoleOf(e)));
+
+function deleteUser(id) {
+  const e = EMPLOYEES.find(x => x.id === id);
+  if (!e) return;
+  if (e.id === CURRENT_USER_ID) { toast('You cannot delete the account you are signed in as'); return; }
+  if (isAdminRole(securityRoleOf(e)) && activeAdmins().length <= 1) { toast('At least one active administrator must remain'); return; }
+  const acks = ASSIGNMENTS.filter(a => a.userId === id && a.status === 'acknowledged').length;
+  if (!confirm(`Remove ${e.first} ${e.last}? Outstanding assignments are withdrawn.${acks ? ` ${acks} acknowledgement${acks === 1 ? '' : 's'} stay in the audit trail.` : ''}`)) return;
+  EMPLOYEES.splice(EMPLOYEES.indexOf(e), 1);
+  syncAssignmentsToRoster();
+  if (editingUserId === id) clearUserEditor();
+  refreshUserViews();
+  toast(`${e.first} ${e.last} removed`);
+}
+
+function renderUsers() {
+  const host = byId('userRows');
+  if (!host) return;
+  const q = (byId('userSearch')?.value || '').toLowerCase();
+  const roleFilter = byId('userRoleFilter')?.value || '';
+  const statusFilter = byId('userStatusFilter')?.value || '';
+  const rows = EMPLOYEES.filter(e =>
+    (!statusFilter || e.status === statusFilter) &&
+    (!roleFilter || securityRoleOf(e) === roleFilter) &&
+    (!q || [e.first, e.last, e.email, e.id, e.facility, securityRoleOf(e), ...(e.roles || []), ...(e.departments || [])].join(' ').toLowerCase().includes(q)));
+  const active = EMPLOYEES.filter(e => e.status === 'Active');
+  byId('userCount').textContent = `${rows.length} user${rows.length === 1 ? '' : 's'}`;
+  byId('userNavCount').textContent = EMPLOYEES.length;
+  byId('kpiUsers').textContent = EMPLOYEES.length;
+  byId('kpiUsersActive').textContent = active.length;
+  byId('kpiAdmins').textContent = activeAdmins().length;
+  byId('kpiUserFacilities').textContent = new Set(active.map(e => e.facility)).size;
+  byId('kpiUserAssignments').textContent = ASSIGNMENTS.length;
+  host.innerHTML = rows.length ? rows.map(e => {
+    const role = securityRoleOf(e);
+    return `<tr><td><b>${esc(e.first)} ${esc(e.last)}</b>${e.id === CURRENT_USER_ID ? ' <span class="adminbadge">YOU</span>' : ''}<div class="subtle">${esc(e.id)} · ${esc(e.email)}</div></td>
+<td>${isAdminRole(role) ? `<span class="adminbadge">${esc(role)}</span>` : `<span class="pill">${esc(role)}</span>`}</td>
+<td>${(e.roles || []).slice(0, 2).map(r => `<span class="tag">${esc(r)}</span>`).join('') || '<span class="subtle">No hospital role</span>'}<div class="subtle">${esc((e.departments || []).join(', ') || 'No department')}</div></td>
+<td>${esc(e.facility)}</td>
+<td><b>${userAssignmentCount(e.id)}</b></td>
+<td><span class="status ${e.status === 'Active' ? 'good' : 'pending'}">${esc(e.status)}</span></td>
+<td><div style="display:flex;gap:5px;flex-wrap:wrap"><button class="btn outline" style="padding:5px 9px;font-size:11px" onclick="editUser('${esc(e.id)}')">Edit</button><button class="btn outline" style="padding:5px 9px;font-size:11px" onclick="toggleUser('${esc(e.id)}')">${e.status === 'Active' ? 'Deactivate' : 'Activate'}</button><button class="btn outline" style="padding:5px 9px;font-size:11px" onclick="deleteUser('${esc(e.id)}')">Remove</button></div></td></tr>`;
+  }).join('') : '<tr><td colspan="7" class="subtle" style="text-align:center;padding:24px">No users match the current filters.</td></tr>';
 }

@@ -163,6 +163,13 @@
 .vhhash{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;color:#7a8999;word-break:break-all}
 .vhactions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .vhactions .btn{padding:6px 10px;font-size:11px}
+.rolegrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px}
+.rolecard{border:1px solid var(--line);border-radius:10px;padding:11px;background:#fbfdff}
+.rolecard b{font-size:12px;color:var(--navy)}
+.rolecard p{margin:4px 0 0;font-size:11px;color:var(--muted)}
+.rolecard .lvl{float:right}
+.adminbadge{background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;font-size:10px;font-weight:800;padding:3px 6px;border-radius:6px}
+@media(max-width:1100px){.rolegrid{grid-template-columns:1fr}}
 .versionrow:last-child{border-bottom:0}
 @media(max-width:900px){.docviewer{grid-template-columns:1fr}.docframe{height:50vh}}
 .dropzone{display:block;border:2px dashed #b9ccdc;border-radius:12px;padding:26px;text-align:center;background:#f8fbfd;cursor:pointer;transition:.18s}
@@ -199,10 +206,12 @@
 <button class="navbtn" data-view="forms" onclick="showView('forms','Forms Management Center')">▧ <span>Forms Management</span><span class="count" id="formNavCount">0</span></button>
 <button class="navbtn" data-view="toc" onclick="showView('toc','Enterprise Table of Contents')">☰ <span>Table of Contents</span><span class="count" id="tocNavCount">0</span></button>
 <button class="navbtn" data-view="assign" onclick="showView('assign','Policy Assignment Center')">✓ <span>Assign Policies</span><span class="count" id="assignNavCount">0</span></button>
+<div class="navlabel">Security &amp; Administration</div>
+<button class="navbtn" data-view="users" onclick="showView('users','User Management')">♟ <span>User Management</span><span class="count" id="userNavCount">0</span></button>
 <div class="navlabel">Quick TOC — <span id="quickTocCount">0</span> Sections</div><div id="quickToc" class="quicktoc"></div>
 </aside>
 <main class="main">
-<header class="topbar"><div><div class="subtle">Freedom Behavioral · Policy Governance</div><h2 id="pageTitle">Enterprise Policy Dashboard</h2></div><div class="spacer"></div><button class="iconbtn" onclick="focusSearch()" title="Search the policy library">⌕</button><div class="user"><div class="avatar">JR</div><span><b>Enterprise Admin</b><div class="subtle">Security Level: Administrator</div></span></div></header>
+<header class="topbar"><div><div class="subtle">Freedom Behavioral · Policy Governance</div><h2 id="pageTitle">Enterprise Policy Dashboard</h2></div><div class="spacer"></div><button class="iconbtn" onclick="focusSearch()" title="Search the policy library">⌕</button><div class="user"><div class="avatar" id="meInitials">--</div><span><b id="meName">—</b><div class="subtle" id="meRole"></div></span></div></header>
 <div class="content">
 
 <section id="dashboard" class="view active">
@@ -295,6 +304,35 @@
 <div class="tablewrap"><table class="table"><thead><tr><th>Policy</th><th>Why assigned</th><th>Risk</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody id="myAssignmentRows"></tbody></table></div></div>
 </div>
 </section>
+
+<section id="users" class="view">
+<div class="hero"><div><h3>User Management</h3><p>Add staff, set what each person can do in the policy system, and keep policy assignments in step with their role, department, and facility.</p></div><div class="hero-actions"><button class="btn white touchbtn" onclick="clearUserEditor()">+ Add User</button></div></div>
+<div class="kpis" style="grid-template-columns:repeat(4,1fr)">
+<div class="card kpi"><div class="label">Users</div><div class="value" id="kpiUsers">0</div><div class="note"><span id="kpiUsersActive">0</span> active</div></div>
+<div class="card kpi"><div class="label">Administrators</div><div class="value" id="kpiAdmins">0</div><div class="note">System &amp; Policy Administrators</div></div>
+<div class="card kpi"><div class="label">Facilities Represented</div><div class="value" id="kpiUserFacilities">0</div><div class="note">of 13 enterprise facilities</div></div>
+<div class="card kpi"><div class="label">Assignments Held</div><div class="value" id="kpiUserAssignments">0</div><div class="note">Across all active users</div></div>
+</div>
+<div class="formmanage-grid">
+
+<div class="card panel"><div class="panelhead"><div><h4 id="userEditorTitle">Add User</h4><div class="subtle">Security role controls system permissions; hospital role and department drive policy assignment.</div></div><span class="pill">Admin Only</span></div>
+<div class="formrow"><div class="field"><label>Employee ID <span class="required">*</span></label><input id="userId" placeholder="e.g. FB-10482"></div><div class="field"><label>Status</label><select id="userStatus"><option>Active</option><option>Inactive</option></select></div></div>
+<div class="formrow"><div class="field"><label>First Name <span class="required">*</span></label><input id="userFirst" placeholder="First name"></div><div class="field"><label>Last Name <span class="required">*</span></label><input id="userLast" placeholder="Last name"></div></div>
+<div class="field"><label>Email Address <span class="required">*</span></label><input id="userEmail" type="email" placeholder="name@freedomhc.com"></div>
+<div class="formrow"><div class="field"><label>Security Role</label><select id="userSecurityRole"></select></div><div class="field"><label>Primary Facility</label><select id="userFacility"></select></div></div>
+<div class="field" style="margin-top:10px"><label>Hospital Roles</label><div class="multi-actions"><button type="button" class="mini-btn" onclick="selectAllMulti('userRoles',true);renderUserPreview()">Select All</button><button type="button" class="mini-btn" onclick="selectAllMulti('userRoles',false);renderUserPreview()">Clear</button></div><select id="userRoles" class="multi compact" multiple onchange="renderUserPreview()"></select></div>
+<div class="field" style="margin-top:10px"><label>Departments</label><div class="multi-actions"><button type="button" class="mini-btn" onclick="selectAllMulti('userDepartments',true);renderUserPreview()">Select All</button><button type="button" class="mini-btn" onclick="selectAllMulti('userDepartments',false);renderUserPreview()">Clear</button></div><select id="userDepartments" class="multi compact" multiple onchange="renderUserPreview()"></select></div>
+<div id="userPreview" class="assignment-preview" style="margin-top:12px"></div>
+<div style="display:flex;gap:8px;margin-top:12px"><button class="btn primary touchbtn" style="flex:1" onclick="saveUser()">Save User</button><button class="btn outline touchbtn" onclick="clearUserEditor()">Clear</button></div></div>
+
+<div class="card panel"><div class="panelhead"><div><h4>Directory</h4><div class="subtle">Everyone with access to the policy system.</div></div><span id="userCount" class="pill">0 users</span></div>
+<div class="toolbar"><input id="userSearch" class="search" placeholder="Search name, email, role, department, facility…" oninput="renderUsers()"><select id="userRoleFilter" class="select" onchange="renderUsers()"><option value="">All security roles</option></select><select id="userStatusFilter" class="select" onchange="renderUsers()"><option value="">All statuses</option><option>Active</option><option>Inactive</option></select></div>
+<div class="tablewrap"><table class="table"><thead><tr><th>User</th><th>Security role</th><th>Hospital role / department</th><th>Facility</th><th>Assignments</th><th>Status</th><th></th></tr></thead><tbody id="userRows"></tbody></table></div>
+<div style="margin-top:16px"><div class="panelhead" style="margin-bottom:4px"><h4>Security Roles</h4><span class="subtle">What each level can do</span></div><div id="roleGrid" class="rolegrid"></div></div>
+<div class="rulebox" style="margin-top:12px">Authentication is not part of this prototype — no passwords are stored here. In production these accounts map to your identity provider (Entra ID / Google Workspace) and the security role below drives what the signed-in person can reach.</div>
+</div>
+
+</div></section>
 
 <section id="toc" class="view">
 <div class="hero"><div><h3>Enterprise Policy Table of Contents</h3><p>Digital TOC organized from the uploaded tracker. Touch a section to review its policies, then touch a policy to see current policy information and all linked forms.</p></div></div>

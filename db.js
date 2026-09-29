@@ -276,6 +276,69 @@ FPC.saveUpload = async function (policyIdxKey, version, file) {
   return {ok: true};
 };
 
+/* Walks the connection one stage at a time and reports where it breaks,
+   because "not saving" on its own tells nobody anything. */
+FPC.diagnose = async function () {
+  const steps = [];
+  const add = (name, ok, detail, fix) => steps.push({name, ok, detail, fix});
+
+  const origin = location.protocol;
+  add('Page origin', origin !== 'file:', origin === 'file:'
+      ? 'Opened directly as a file — the browser sends Origin: null, which the API rejects'
+      : `Served over ${origin}`,
+      'Serve the folder instead: npx serve . — then open the http://localhost URL');
+
+  add('Config loaded', typeof SUPABASE_CONFIG !== 'undefined',
+      typeof SUPABASE_CONFIG !== 'undefined' ? SUPABASE_CONFIG.url : 'config.js did not load',
+      'config.js must sit next to index.html and be reachable');
+
+  add('Supabase library', typeof supabase !== 'undefined',
+      typeof supabase !== 'undefined' ? 'loaded' : 'the CDN script did not load',
+      'The page pulls supabase-js from cdn.jsdelivr.net. If your network blocks it, download it once — ' +
+      'curl -o vendor/supabase.min.js https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js — ' +
+      'and point the script tag in index.html at vendor/supabase.min.js');
+
+  if (typeof SUPABASE_CONFIG === 'undefined') return steps;
+
+  // a plain REST call says more than the client wrapper does
+  try {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/toc_section?select=id&limit=1`, {
+      headers: {apikey: SUPABASE_CONFIG.publishableKey,
+                Authorization: `Bearer ${SUPABASE_CONFIG.publishableKey}`}
+    });
+    const body = await res.text();
+    if (res.ok) {
+      const rows = JSON.parse(body || '[]');
+      add('Reaching the database', true, `HTTP ${res.status}`, '');
+      add('Reading a table', rows.length > 0,
+          rows.length ? 'toc_section returned a row' : 'connected, but toc_section came back empty',
+          'Run db/seed.sql, and db/dev-open-access.sql so the anonymous role can read');
+    } else {
+      add('Reaching the database', false, `HTTP ${res.status} — ${body.slice(0, 160)}`,
+          res.status === 401 ? 'The key was rejected — check the publishable key in config.js'
+          : res.status === 404 ? 'That table does not exist — run db/schema.sql and db/seed.sql'
+          : 'Check the project URL in config.js');
+    }
+  } catch (e) {
+    add('Reaching the database', false, `Request failed: ${e.message}`,
+        'Usually a file:// origin or no network. Serve over http with npx serve .');
+  }
+
+  // storage is a separate failure, and only bites on upload
+  try {
+    const res = await fetch(`${SUPABASE_CONFIG.url}/storage/v1/bucket/form-template`, {
+      headers: {apikey: SUPABASE_CONFIG.publishableKey,
+                Authorization: `Bearer ${SUPABASE_CONFIG.publishableKey}`}
+    });
+    add('Storage buckets', res.ok || res.status === 400,
+        `HTTP ${res.status}`,
+        'Run db/storage-buckets.sql and db/storage-dev-access.sql');
+  } catch (e) {
+    add('Storage buckets', false, e.message, 'Run db/storage-buckets.sql');
+  }
+  return steps;
+};
+
 FPC.audit = async function (action, entityType, entityId, metadata) {
   if (!FPC.connected) return;
   try {

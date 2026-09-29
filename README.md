@@ -40,7 +40,11 @@ the reason. In that state the app still runs on seeded data and every save warns
 session-only. A failed write is never swallowed.
 
 Serve the page over http (`npx serve .`) rather than opening the file directly — a
-`file://` origin can be rejected by the API.
+`file://` origin is rejected by the API.
+
+If the chip says **Not saving**, click it: the panel walks the connection one stage at a
+time (page origin, config, client library, reaching the database, reading a table, storage)
+and names the fix for whichever step failed.
 
 > **Access is temporarily open.** Until Microsoft sign-in is wired up, `db/dev-open-access.sql`
 > grants the anonymous role full read and write. Anyone with the project URL and the

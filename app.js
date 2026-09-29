@@ -128,6 +128,21 @@ function setDbStatus(state, text, title) {
   el.textContent = text;
   el.title = title || '';
   el.style.display = state === 'off' ? '' : 'none';
+  el.onclick = state === 'off' ? showDbDiagnostics : null;
+  el.style.cursor = state === 'off' ? 'pointer' : '';
+}
+
+async function showDbDiagnostics() {
+  byId('vhTitle').textContent = 'Database connection';
+  byId('vhSubtitle').textContent = 'Where the connection is breaking, one step at a time';
+  byId('vhBody').innerHTML = '<div class="subtle" style="padding:14px">Checking…</div>';
+  byId('versionModal').classList.add('show');
+  const steps = await FPC.diagnose();
+  byId('vhBody').innerHTML = steps.map(s => `<div class="vhrow">
+<div class="vhlabel"><span class="status ${s.ok ? 'good' : 'overdue'}">${s.ok ? 'OK' : 'Failed'}</span></div>
+<div><b>${esc(s.name)}</b><div class="vhmeta">${esc(s.detail)}</div>${!s.ok && s.fix ? `<div class="vhmeta" style="color:var(--blue)"><b>Fix:</b> ${esc(s.fix)}</div>` : ''}</div>
+<div></div></div>`).join('') +
+    `<div class="rulebox" style="margin-top:12px">Run order: <b>schema.sql → seed.sql → rls.sql → migrations/002_form_audience.sql → dev-open-access.sql → storage-buckets.sql → storage-dev-access.sql</b>, then reload this page.</div>`;
 }
 
 async function connectDatabase() {

@@ -320,8 +320,22 @@ FPC.diagnose = async function () {
           : 'Check the project URL in config.js');
     }
   } catch (e) {
-    add('Reaching the database', false, `Request failed: ${e.message}`,
-        'Usually a file:// origin or no network. Serve over http with npx serve .');
+    // "Failed to fetch" covers several very different causes. A no-cors probe
+    // separates "the host never answered" from "it answered and CORS blocked it".
+    let hostAnswered = false;
+    try {
+      await fetch(`${SUPABASE_CONFIG.url}/rest/v1/`, {mode: 'no-cors'});
+      hostAnswered = true;
+    } catch (_) { /* still unreachable */ }
+    add('Reaching the database', false,
+        hostAnswered
+          ? `The host answered but the browser blocked the response (${e.message}) — a CORS or extension problem`
+          : `No response from ${SUPABASE_CONFIG.url} (${e.message})`,
+        hostAnswered
+          ? 'Disable ad-blockers or privacy extensions for this page, then retry'
+          : 'The project URL does not resolve, the project is paused, or a firewall blocks *.supabase.co. ' +
+            'Check Supabase → Settings → API for the exact Project URL, and that the project is not paused. ' +
+            `Opening ${SUPABASE_CONFIG.url}/rest/v1/ in a new tab should return JSON, not a connection error.`);
   }
 
   // storage is a separate failure, and only bites on upload

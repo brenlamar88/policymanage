@@ -45,7 +45,7 @@ FPC.connect = async function () {
 FPC.hydrate = async function () {
   if (!FPC.connected) return null;
   const c = FPC.client;
-  const [sections, facilities, departments, roles, policies, expected, forms, links, users] =
+  const [sections, facilities, departments, roles, policies, expected, forms, links, users, versions] =
     await Promise.all([
       c.from('toc_section').select('id,name,sort_order').order('sort_order'),
       c.from('facility').select('id,name'),
@@ -55,10 +55,13 @@ FPC.hydrate = async function () {
       c.from('policy_expected_form').select('policy_id,form_number'),
       c.from('form').select('id,form_code,name,risk_level,audience,notify,source_filename,owner_department_id'),
       c.from('policy_form_link').select('policy_id,form_id'),
-      c.from('app_user').select('id,employee_no,first_name,last_name,email,security_role,is_shared_mailbox,status,primary_facility_id')
+      c.from('app_user').select('id,employee_no,first_name,last_name,email,security_role,is_shared_mailbox,status,primary_facility_id'),
+      c.from('policy_version').select('id,policy_id,version_no,version_label,status,content_hash,created_at,published_at,' +
+        'source:storage_object!policy_version_source_object_id_fkey(bucket,object_key,original_filename,byte_size)')
+        .order('version_no')
     ]);
 
-  const firstError = [sections, facilities, departments, roles, policies, expected, forms, links, users]
+  const firstError = [sections, facilities, departments, roles, policies, expected, forms, links, users, versions]
     .map(r => r.error).find(Boolean);
   if (firstError) { FPC.lastError = firstError.message; return null; }
 
@@ -90,6 +93,29 @@ FPC.hydrate = async function () {
     };
     FPC.ids.policyByKey.set(policyKey(rec), p.id);
     return rec;
+  });
+
+  // uploaded versions, keyed like the policies so the app can find them by index
+  const keyByPolicyId = new Map();
+  FPC.ids.policyByKey.forEach((id, key) => keyByPolicyId.set(id, key));
+  const versionsByKey = new Map();
+  versions.data.forEach(v => {
+    const key = keyByPolicyId.get(v.policy_id);
+    if (!key) return;
+    if (!versionsByKey.has(key)) versionsByKey.set(key, []);
+    versionsByKey.get(key).push({
+      dbId: v.id,
+      versionNo: v.version_no,
+      label: v.version_label,
+      status: v.status,
+      createdAt: v.created_at,
+      publishedAt: v.published_at,
+      hash: v.content_hash,
+      bucket: v.source ? v.source.bucket : null,
+      objectKey: v.source ? v.source.object_key : null,
+      filename: v.source ? v.source.original_filename : null,
+      size: v.source ? v.source.byte_size : null
+    });
   });
 
   const policyNumberById = new Map(policies.data.map(p => [p.id, p.policy_number]));
@@ -142,7 +168,7 @@ FPC.hydrate = async function () {
     if (u && d.department) u.departments.push(d.department.name);
   });
 
-  return {policies: nextPolicies, forms: nextForms, users: nextUsers};
+  return {policies: nextPolicies, forms: nextForms, users: nextUsers, versions: versionsByKey};
 };
 
 /* ----------------------------------------------------------------- write */
@@ -267,12 +293,40 @@ FPC.saveUpload = async function (policyIdxKey, version, file) {
   }).select('id').single();
   if (objError) return {ok: false, reason: objError.message};
 
-  const {error: verError} = await c.from('policy_version').insert({
+  const {data: ver, error: verError} = await c.from('policy_version').insert({
     policy_id: policyId, version_no: version.versionNo, version_label: version.label,
     status: 'draft', source_object_id: obj.id, content_hash: version.hash || null
-  });
+  }).select('id').single();
   if (verError) return {ok: false, reason: verError.message};
   await FPC.audit('policy.version_uploaded', 'policy', policyId, {file: file.name, label: version.label});
+  return {ok: true, id: ver.id, bucket: 'policy-source', objectKey};
+};
+
+/* Approval: the version in force becomes superseded, this one takes force,
+   and the policy points at it. Nothing is deleted. */
+FPC.publishVersion = async function (policyIdxKey, versionId) {
+  if (!FPC.connected) return {ok: false, reason: 'offline'};
+  const c = FPC.client;
+  const policyId = FPC.ids.policyByKey.get(policyIdxKey);
+  if (!policyId) return {ok: false, reason: 'policy not found in the database'};
+  const now = new Date().toISOString();
+
+  const {error: supError} = await c.from('policy_version')
+    .update({status: 'superseded', retired_on: now.slice(0, 10)})
+    .eq('policy_id', policyId).eq('status', 'published');
+  if (supError) return {ok: false, reason: supError.message};
+
+  const {error: pubError} = await c.from('policy_version')
+    .update({status: 'published', published_at: now, effective_on: now.slice(0, 10)})
+    .eq('id', versionId);
+  if (pubError) return {ok: false, reason: pubError.message};
+
+  const {error: polError} = await c.from('policy')
+    .update({current_version_id: versionId, updated_at: now})
+    .eq('id', policyId);
+  if (polError) return {ok: false, reason: polError.message};
+
+  await FPC.audit('policy.version_published', 'policy', policyId, {version_id: versionId});
   return {ok: true};
 };
 

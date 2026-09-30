@@ -164,6 +164,7 @@ async function connectDatabase() {
   if (loaded.users.length) { EMPLOYEES.length = 0; EMPLOYEES.push(...loaded.users); }
   SECTIONS.length = 0;
   SECTIONS.push(...[...new Set(loaded.policies.map(p => p.section))]);
+  restoreVersions(loaded.versions);
   dbReady = true;
   setDbStatus('live', 'Saving to Supabase', `${loaded.policies.length} policies, ${loaded.forms.length} forms, ${loaded.users.length} users loaded`);
 }
@@ -539,6 +540,46 @@ function versionsFor(idx) {
   return POLICY_VERSIONS.get(idx);
 }
 
+/* Rebuilds each policy's history from what the database holds, so uploads
+   and approvals survive a refresh. The imported baseline stays first; it is
+   superseded once any stored version has been published. */
+const DB_STATUS = {draft: 'pending', in_review: 'pending', approved: 'pending', published: 'published', superseded: 'superseded'};
+function restoreVersions(byKey) {
+  POLICY_VERSIONS.clear();
+  if (!byKey || !byKey.size) return;
+  POLICIES.forEach((p, idx) => {
+    const stored = byKey.get(`${p.section}|${p.policy}|${p.title}`);
+    if (!stored || !stored.length) return;
+    const list = versionsFor(idx);
+    stored.forEach(s => {
+      // same fingerprint as the upload queue, so a re-upload is caught as a duplicate
+      if (s.hash && s.size) INGESTED.add(`${s.hash}:${s.size}`);
+      const status = DB_STATUS[s.status] || 'pending';
+      list.push({
+        id: ++versionSeq,
+        dbId: s.dbId,
+        versionNo: s.versionNo,
+        label: s.label,
+        status,
+        at: s.createdAt ? new Date(s.createdAt) : null,
+        publishedAt: s.publishedAt ? new Date(s.publishedAt) : null,
+        by: 'Enterprise Admin',
+        filename: s.filename, size: s.size, file: null, hash: s.hash,
+        bucket: s.bucket, objectKey: s.objectKey,
+        note: status === 'published' ? 'Published — current controlled version'
+          : status === 'superseded' ? 'Superseded — retained for audit'
+          : 'Uploaded — awaiting review and approval'
+      });
+    });
+    const current = list.filter(v => v.status === 'published' && v.dbId);
+    if (current.length) {
+      list[0].status = 'superseded';
+      list[0].note = 'Baseline record — superseded by an uploaded version';
+      p.revision = current[current.length - 1].label;
+    }
+  });
+}
+
 function nextVersionLabel(idx) {
   const nums = versionsFor(idx)
     .map(v => parseFloat(String(v.label).replace(/^v/i, '')))
@@ -547,8 +588,11 @@ function nextVersionLabel(idx) {
 }
 
 function addUploadedVersion(idx, row) {
+  const list = versionsFor(idx);
   const v = {
     id: ++versionSeq,
+    // the database keys versions by number, so never reuse one already stored
+    versionNo: Math.max(list.length, ...list.map(x => x.versionNo || 0)) + 1,
     label: nextVersionLabel(idx),
     status: 'pending',
     at: new Date(),
@@ -557,18 +601,25 @@ function addUploadedVersion(idx, row) {
     hash: row.fp ? row.fp.split(':')[0] : null,
     note: 'Uploaded — awaiting review and approval'
   };
-  versionsFor(idx).push(v);
+  list.push(v);
   return v;
 }
 
 /* Approval is the deliberate step: the pending version takes force and the
    one it replaces becomes superseded. */
-function publishVersion(idx, versionId) {
+async function publishVersion(idx, versionId) {
   if (!isAdmin()) { toast('Publishing a controlled version is limited to administrators'); return; }
   const list = versionsFor(idx);
   const v = list.find(x => x.id === versionId);
   if (!v || v.status !== 'pending') return;
   if (!confirm(`Publish ${v.label} of ${POLICIES[idx].policy}? The version in force becomes superseded and staff are re-assigned this text.`)) return;
+  const p = POLICIES[idx];
+  if (dbReady && !v.dbId) {
+    toast(`${v.label} has no database record — upload it again before publishing`);
+    return;
+  }
+  if (v.dbId && !await persist(`Publishing ${p.policy} ${v.label}`,
+      () => FPC.publishVersion(`${p.section}|${p.policy}|${p.title}`, v.dbId))) return;
   list.forEach(x => { if (x.status === 'published') { x.status = 'superseded'; x.retiredAt = new Date(); } });
   v.status = 'published';
   v.publishedAt = new Date();
@@ -829,10 +880,15 @@ async function processRow(r) {
   if (r.kind !== 'form' && r.targetIdx !== null) {
     const v = addUploadedVersion(r.targetIdx, r);
     const p = POLICIES[r.targetIdx];
-    await persist(`Upload of ${r.name}`, () => FPC.saveUpload(
-      `${p.section}|${p.policy}|${p.title}`,
-      {label: v.label, versionNo: versionsFor(r.targetIdx).length, hash: v.hash},
-      r.file));
+    await persist(`Upload of ${r.name}`, async () => {
+      const res = await FPC.saveUpload(
+        `${p.section}|${p.policy}|${p.title}`,
+        {label: v.label, versionNo: v.versionNo, hash: v.hash},
+        r.file);
+      // keep the stored identity so the version can be published and reopened
+      if (res && res.ok) Object.assign(v, {dbId: res.id, bucket: res.bucket, objectKey: res.objectKey});
+      return res;
+    });
   }
   renderQueue();
 }
@@ -997,21 +1053,27 @@ async function openForm(formId) {
 
 /* A specific version of a policy document — real bytes when it was uploaded
    in this session, the record sheet when it is the imported baseline. */
-function openVersionDoc(policyIdx, versionId) {
+async function openVersionDoc(policyIdx, versionId) {
   const v = versionsFor(policyIdx).find(x => x.id === versionId);
   if (!v) { toast('Version not found'); return; }
   const p = POLICIES[policyIdx];
   const state = {published: ['good', 'Current controlled version'], pending: ['pending', 'Pending review — not published'], superseded: ['pending', 'Superseded — retained for audit']}[v.status];
+  // after a refresh the bytes live only in Storage; fetch a short-lived link
+  const storedUrl = (!v.file && v.objectKey && dbReady) ? await FPC.signedUrl(v.bucket || 'policy-source', v.objectKey) : null;
+  if (!v.file && v.objectKey && !storedUrl) toast('The stored file could not be fetched — check the connection');
   openDocViewer({
     title: v.filename || `${p.policy} · ${p.title}`,
     subtitle: `${v.label} · ${p.policy} · ${p.title}`,
     file: v.file,
+    url: storedUrl,
+    filename: v.filename,
     linkedPolicies: [policyIdx],
     meta: [
       ['Status', `<span class="status ${state[0]}">${state[1]}</span>`],
       ['Version', esc(v.label)],
       [v.at ? 'Uploaded' : 'Origin', esc(v.at ? v.at.toLocaleString() : v.by)],
       ['Size', v.size ? esc(fmtSize(v.size)) : '<span class="subtle">No file attached</span>'],
+      ...(v.objectKey ? [['Stored', `<span class="subtle">${esc(v.bucket || 'policy-source')}/${esc(v.objectKey)}</span>`]] : []),
       ['Content hash', v.hash ? `<span class="vhhash">${esc(v.hash.slice(0, 32))}…</span>` : '<span class="subtle">—</span>'],
       ['Policy', `${esc(p.policy)} · ${esc(p.title)}`],
       ['Section', esc(p.section)]

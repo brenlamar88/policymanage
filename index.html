@@ -91,6 +91,22 @@
 .touchbtn{min-height:44px;touch-action:manipulation}
 .assign-summary{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .assign-chip{font-size:11px;padding:5px 8px;background:#eef5fa;border:1px solid #d6e5ef;border-radius:999px;color:#38556e}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.tagrow{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.tagchip{display:inline-flex;align-items:center;border-radius:999px;border:1px solid;font-size:11px;font-weight:700;line-height:1;overflow:hidden}
+.tagchip button{background:none;border:0;color:inherit;font:inherit;cursor:pointer}
+.tagchip .tagname{padding:5px 9px}
+.tagchip .tagx{padding:5px 8px 5px 2px;font-size:13px;opacity:.7}
+.tagchip .tagx:hover{opacity:1}
+.assign-chip .tagx{background:none;border:0;color:inherit;cursor:pointer;padding:0 0 0 3px}
+.tagchip.c-blue{background:#e8f2fa;border-color:#bcd7ec;color:#175c92}
+.tagchip.c-green{background:#e6f4e3;border-color:#bfe0b8;color:#2f6f25}
+.tagchip.c-amber{background:#fdf3dc;border-color:#f1d799;color:#8a5a00}
+.tagchip.c-red{background:#fbe8e9;border-color:#efbcc0;color:#a3303a}
+.tagchip.c-purple{background:#f0eafb;border-color:#d3c4ef;color:#5b3a99}
+.tagchip.c-slate{background:#eef2f6;border-color:#cfd8e2;color:#3f5266}
+.tagadd{padding:5px 8px;font-size:12px;min-width:150px;flex:0 0 auto}
+.linkbtn{background:none;border:0;padding:0;color:var(--blue);font:inherit;text-decoration:underline;cursor:pointer}
 .linkmatrix{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
 .linkmatrix>div{background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:8px}
 .linkmatrix b{display:block;font-size:16px}
@@ -218,6 +234,7 @@ body[data-access="staff"] .admin-only{display:none !important}
 <button class="navbtn admin-only" data-view="assign" onclick="showView('assign','Policy Assignment Center')">✓ <span>Assign Policies</span><span class="count" id="assignNavCount">0</span></button>
 <div class="navlabel admin-only">Security &amp; Administration</div>
 <button class="navbtn admin-only" data-view="users" onclick="showView('users','User Management')">♟ <span>User Management</span><span class="count" id="userNavCount">0</span></button>
+<button class="navbtn admin-only" data-view="tags" onclick="showView('tags','Tag Management')"># <span>Tags</span><span class="count" id="tagNavCount">0</span></button>
 <div class="navlabel">Quick TOC — <span id="quickTocCount">0</span> Sections</div><div id="quickToc" class="quicktoc"></div>
 </aside>
 <main class="main">
@@ -248,9 +265,10 @@ body[data-access="staff"] .admin-only{display:none !important}
 
 <section id="library" class="view"><div class="card panel"><div class="panelhead"><div><h4>Controlled Policy &amp; Form Library</h4><div class="subtle">Source structure imported from Enterprise Policy Tracker &amp; TOC</div></div><span id="policyCount" class="pill"></span></div>
 <div class="toolbar">
-<input id="search" class="search" placeholder="Search policy #, title, section..." oninput="renderPolicyTable()">
+<input id="search" class="search" placeholder="Search policy #, title, section, tag..." oninput="renderPolicyTable()">
 <select id="sectionFilter" class="select" onchange="renderPolicyTable()"><option value="">All TOC Sections</option></select>
 <select id="riskFilter" class="select" onchange="renderPolicyTable()"><option value="">All Risk Levels</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select>
+<select id="tagFilter" class="select" onchange="renderPolicyTable()" aria-label="Filter by tag"><option value="">All tags</option></select>
 <button class="btn outline touchbtn" onclick="resetLibraryFilters()">Reset Filters</button>
 <button class="btn primary touchbtn admin-only" onclick="openUpload()">⇧ Bulk Upload</button>
 </div>
@@ -345,6 +363,23 @@ body[data-access="staff"] .admin-only{display:none !important}
 <div style="margin-top:16px"><div class="panelhead" style="margin-bottom:4px"><h4>Security Roles</h4><span class="subtle">What each level can do</span></div><div id="roleGrid" class="rolegrid"></div></div>
 <div class="rulebox" style="margin-top:12px"><b>Sign-in is Microsoft 365.</b> No passwords are stored here. Each account maps to an Entra ID object in the <b>freedomhc.com</b> tenant, security roles come from Entra groups, and a disabled Microsoft account loses access on the next sync — which withdraws outstanding assignments and leaves acknowledgement evidence intact. See <code>docs/data-model.md</code> §6.</div>
 </div>
+
+</div></section>
+
+<section id="tags" class="view">
+<div class="hero"><div><h3>Tag Management</h3><p>Create tags that cut across TOC sections — such as Forensic Programming — and attach them to policies. Staff can then search or filter the library by tag.</p></div><div class="hero-actions"><button class="btn white touchbtn" onclick="clearTagEditor();byId('tagName').focus()">+ New Tag</button></div></div>
+<div class="formmanage-grid">
+
+<div class="card panel"><div class="panelhead"><div><h4 id="tagEditorTitle">Create Tag</h4><div class="subtle">A tag can be attached to any number of policies, in any section.</div></div><span class="pill">Admin Only</span></div>
+<div class="formrow"><div class="field"><label for="tagName">Tag Name <span class="required">*</span></label><input id="tagName" maxlength="60" placeholder="e.g., Forensic Programming"></div><div class="field"><label for="tagColor">Color</label><select id="tagColor"><option value="blue">Blue</option><option value="green">Green</option><option value="amber">Amber</option><option value="red">Red</option><option value="purple">Purple</option><option value="slate">Slate</option></select></div></div>
+<div class="field"><label for="tagDescription">Description</label><input id="tagDescription" maxlength="200" placeholder="What the tag means, so staff know when it applies"></div>
+<div class="field" style="margin-top:10px"><label for="tagPolicySearch">Policies With This Tag</label><input id="tagPolicySearch" placeholder="Search policy number, title, or section…" oninput="renderTagPolicyPicker()" style="margin-bottom:6px"><div class="multi-actions"><button type="button" class="mini-btn" onclick="pickShownTagPolicies(true)">Select All Shown</button><button type="button" class="mini-btn" onclick="pickShownTagPolicies(false)">Clear Shown</button></div><select id="tagPolicies" class="multi" multiple onchange="onTagPolicyPick()" aria-label="Policies with this tag"></select><div class="subtle">Search narrows the list without losing what you already picked. Ctrl/⌘ click for multiple on desktop.</div></div>
+<div id="tagPickSummary" class="assignment-preview" style="margin-top:10px"></div>
+<div style="display:flex;gap:8px;margin-top:12px"><button class="btn primary touchbtn" style="flex:1" onclick="saveTag()">Save Tag</button><button class="btn outline touchbtn" onclick="clearTagEditor()">Clear</button></div></div>
+
+<div class="card panel"><div class="panelhead"><div><h4>All Tags</h4><div class="subtle">Touch a tag to see its policies in the library.</div></div><span id="tagCount" class="pill">0 tags</span></div>
+<div class="toolbar"><input id="tagSearch" class="search" placeholder="Search tags…" oninput="renderTags()"></div>
+<div id="tagsList"></div></div>
 
 </div></section>
 

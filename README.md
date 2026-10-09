@@ -46,6 +46,9 @@ If the chip says **Not saving**, click it: the panel walks the connection one st
 time (page origin, config, client library, reaching the database, reading a table, storage)
 and names the fix for whichever step failed.
 
+> **Access is open.** `db/rls-disable.sql` lifts Row Level Security entirely; re-apply
+> `db/rls.sql` to put it back once Microsoft sign-in is live.
+>
 > **Access is temporarily open.** Until Microsoft sign-in is wired up, `db/dev-open-access.sql`
 > grants the anonymous role full read and write. Anyone with the project URL and the
 > publishable key can read and change everything, and no acknowledgement recorded in this

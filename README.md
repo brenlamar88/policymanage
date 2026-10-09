@@ -55,6 +55,14 @@ and names the fix for whichever step failed.
 > window identifies a person. Keep the URL private, keep confidential content out, and run
 > `db/dev-open-access-revert.sql` and `db/storage-dev-access-revert.sql` as soon as sign-in works.
 
+> **The deployed site is gated.** `middleware.js` runs on Vercel before any file is served
+> and shows an *Access restricted* page. It is closed to everyone until `SITE_PASSCODE` is
+> set in the Vercel project's environment variables; with it set, the passcode unlocks the
+> site in that browser for 14 days. Changing the passcode signs everyone out. The gate keeps
+> casual visitors away from the app and `config.js`, but it is not sign-in — anyone who
+> already has the project URL and key can still reach the database directly. Remove the
+> gate when Microsoft sign-in is live.
+
 ## Seeded accounts
 
 - Corporate administrators (`@freedomhc.com`) — System Administrator.

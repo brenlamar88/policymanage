@@ -32,7 +32,7 @@ real URL. Roughly half the work belongs to Freedom IT, half to the build.
 
 ## B. Build — Supabase
 
-**Project:** `yphlmchwdabdbpmgpznd` — `https://yphlmchwdabdbpmgpznd.supabase.co`
+**Project:** `ikqtatkuffokwecsnphp` (eventreg-demo, V8 Technologies org) — `https://ikqtatkuffokwecsnphp.supabase.co`
 
 **B0. Load the database (do this now — it does not wait on IT).** In the Supabase
 SQL editor, run these three files in order. All three are idempotent, and all three

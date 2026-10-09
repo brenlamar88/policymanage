@@ -45,7 +45,7 @@ FPC.connect = async function () {
 FPC.hydrate = async function () {
   if (!FPC.connected) return null;
   const c = FPC.client;
-  const [sections, facilities, departments, roles, policies, expected, forms, links, users, versions] =
+  const [sections, facilities, departments, roles, policies, expected, forms, links, users, versions, tags, policyTags] =
     await Promise.all([
       c.from('toc_section').select('id,name,sort_order').order('sort_order'),
       c.from('facility').select('id,name'),
@@ -58,8 +58,18 @@ FPC.hydrate = async function () {
       c.from('app_user').select('id,employee_no,first_name,last_name,email,security_role,is_shared_mailbox,status,primary_facility_id'),
       c.from('policy_version').select('id,policy_id,version_no,version_label,status,content_hash,created_at,published_at,' +
         'source:storage_object!policy_version_source_object_id_fkey(bucket,object_key,original_filename,byte_size)')
-        .order('version_no')
+        .order('version_no'),
+      c.from('tag').select('id,name,color,description').order('name'),
+      c.from('policy_tag').select('policy_id,tag_id')
     ]);
+
+  // tags arrive with migrations/003_tags.sql; a database without them still loads
+  FPC.tagsAvailable = !tags.error && !policyTags.error;
+  const tagsByPolicy = new Map();
+  if (FPC.tagsAvailable) policyTags.data.forEach(pt => {
+    if (!tagsByPolicy.has(pt.policy_id)) tagsByPolicy.set(pt.policy_id, []);
+    tagsByPolicy.get(pt.policy_id).push(pt.tag_id);
+  });
 
   const firstError = [sections, facilities, departments, roles, policies, expected, forms, links, users, versions]
     .map(r => r.error).find(Boolean);
@@ -89,7 +99,8 @@ FPC.hydrate = async function () {
       risk: p.risk_level,
       basis: p.risk_basis || '',
       regulatory: p.regulatory_driver || 'Corporate',
-      revision: ''
+      revision: '',
+      tags: tagsByPolicy.get(p.id) || []
     };
     FPC.ids.policyByKey.set(policyKey(rec), p.id);
     return rec;
@@ -168,7 +179,8 @@ FPC.hydrate = async function () {
     if (u && d.department) u.departments.push(d.department.name);
   });
 
-  return {policies: nextPolicies, forms: nextForms, users: nextUsers, versions: versionsByKey};
+  return {policies: nextPolicies, forms: nextForms, users: nextUsers, versions: versionsByKey,
+          tags: FPC.tagsAvailable ? tags.data.map(t => ({id: t.id, name: t.name, color: t.color, description: t.description || ''})) : null};
 };
 
 /* ----------------------------------------------------------------- write */
@@ -239,6 +251,64 @@ FPC.saveForm = async function (rec) {
   rec.objectKey = objectKey;
   await FPC.audit('form.saved', 'form', data.id, {form_code: rec.id, policies: rec.policies, document: !!objectKey});
   return {ok: true, id: data.id, linked: rows.length};
+};
+
+/* Tags. A tag is created or renamed here; which policies carry it is set
+   with setPolicyTags, either one policy at a time or a whole list at once. */
+FPC.saveTag = async function (rec) {
+  if (!FPC.connected) return {ok: false, reason: 'offline'};
+  if (!FPC.tagsAvailable) return {ok: false, reason: 'tags are not set up in the database — run db/migrations/003_tags.sql'};
+  const payload = {name: rec.name, color: rec.color, description: rec.description || null};
+  const q = rec.dbId
+    ? FPC.client.from('tag').update(payload).eq('id', rec.dbId)
+    : FPC.client.from('tag').insert(payload);
+  const {data, error} = await q.select('id').single();
+  if (error) return {ok: false, reason: /duplicate|unique/i.test(error.message) ? `a tag named "${rec.name}" already exists` : error.message};
+  await FPC.audit(rec.dbId ? 'tag.updated' : 'tag.created', 'tag', data.id, {name: rec.name});
+  return {ok: true, id: data.id};
+};
+
+FPC.deleteTag = async function (tagId, name) {
+  if (!FPC.connected) return {ok: false, reason: 'offline'};
+  const {error} = await FPC.client.from('tag').delete().eq('id', tagId);
+  if (error) return {ok: false, reason: error.message};
+  await FPC.audit('tag.deleted', 'tag', tagId, {name});
+  return {ok: true};
+};
+
+/* Brings the database in line with one tag's policy list: adds what is new,
+   removes what was dropped, leaves the rest alone. */
+FPC.setTagPolicies = async function (tagId, policyKeys, previousKeys) {
+  if (!FPC.connected) return {ok: false, reason: 'offline'};
+  const idOf = k => FPC.ids.policyByKey.get(k);
+  const want = new Set(policyKeys.map(idOf).filter(Boolean));
+  const had = new Set(previousKeys.map(idOf).filter(Boolean));
+  const add = [...want].filter(id => !had.has(id)).map(policy_id => ({policy_id, tag_id: tagId}));
+  const remove = [...had].filter(id => !want.has(id));
+  if (add.length) {
+    const {error} = await FPC.client.from('policy_tag').upsert(add, {onConflict: 'policy_id,tag_id', ignoreDuplicates: true});
+    if (error) return {ok: false, reason: error.message};
+  }
+  if (remove.length) {
+    const {error} = await FPC.client.from('policy_tag').delete().eq('tag_id', tagId).in('policy_id', remove);
+    if (error) return {ok: false, reason: error.message};
+  }
+  if (add.length || remove.length) {
+    await FPC.audit('tag.policies_changed', 'tag', tagId, {added: add.length, removed: remove.length});
+  }
+  return {ok: true, added: add.length, removed: remove.length};
+};
+
+FPC.setPolicyTag = async function (policyIdxKey, tagId, on) {
+  if (!FPC.connected) return {ok: false, reason: 'offline'};
+  const policyId = FPC.ids.policyByKey.get(policyIdxKey);
+  if (!policyId) return {ok: false, reason: 'policy not found in the database'};
+  const {error} = on
+    ? await FPC.client.from('policy_tag').upsert({policy_id: policyId, tag_id: tagId}, {onConflict: 'policy_id,tag_id', ignoreDuplicates: true})
+    : await FPC.client.from('policy_tag').delete().eq('policy_id', policyId).eq('tag_id', tagId);
+  if (error) return {ok: false, reason: error.message};
+  await FPC.audit(on ? 'policy.tag_added' : 'policy.tag_removed', 'policy', policyId, {tag_id: tagId});
+  return {ok: true};
 };
 
 FPC.saveUser = async function (rec) {

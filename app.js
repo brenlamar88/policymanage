@@ -142,7 +142,7 @@ async function showDbDiagnostics() {
 <div class="vhlabel"><span class="status ${s.ok ? 'good' : 'overdue'}">${s.ok ? 'OK' : 'Failed'}</span></div>
 <div><b>${esc(s.name)}</b><div class="vhmeta">${esc(s.detail)}</div>${!s.ok && s.fix ? `<div class="vhmeta" style="color:var(--blue)"><b>Fix:</b> ${esc(s.fix)}</div>` : ''}</div>
 <div></div></div>`).join('') +
-    `<div class="rulebox" style="margin-top:12px">Run order: <b>schema.sql → seed.sql → rls.sql → migrations/002_form_audience.sql → dev-open-access.sql → storage-buckets.sql → storage-dev-access.sql</b>, then reload this page.</div>`;
+    `<div class="rulebox" style="margin-top:12px">Run order: <b>schema.sql → seed.sql → rls.sql → migrations/002_form_audience.sql → migrations/003_tags.sql → dev-open-access.sql → storage-buckets.sql → storage-dev-access.sql</b>, then reload this page.</div>`;
 }
 
 async function connectDatabase() {
@@ -165,6 +165,7 @@ async function connectDatabase() {
   SECTIONS.length = 0;
   SECTIONS.push(...[...new Set(loaded.policies.map(p => p.section))]);
   restoreVersions(loaded.versions);
+  if (loaded.tags) { TAGS.length = 0; TAGS.push(...loaded.tags); }
   dbReady = true;
   setDbStatus('live', 'Saving to Supabase', `${loaded.policies.length} policies, ${loaded.forms.length} forms, ${loaded.users.length} users loaded`);
 }
@@ -307,6 +308,7 @@ function filterRisk(n) {
   showView('library', 'Policy & Form Library');
   byId('riskFilter').value = String(n);
   byId('sectionFilter').value = '';
+  byId('tagFilter').value = '';
   byId('search').value = '';
   renderPolicyTable();
 }
@@ -321,21 +323,24 @@ function renderPolicyTable() {
   const q = byId('search').value.toLowerCase();
   const risk = byId('riskFilter').value;
   const sec = byId('sectionFilter').value;
+  const tag = byId('tagFilter').value;
   const data = POLICIES.map((p, idx) => ({p, idx})).filter(({p}) =>
-    (!q || (p.title + ' ' + p.policy + ' ' + p.section).toLowerCase().includes(q)) &&
+    (!q || (p.title + ' ' + p.policy + ' ' + p.section + ' ' + tagNamesOf(p).join(' ')).toLowerCase().includes(q)) &&
     (!risk || String(p.risk) === risk) &&
-    (!sec || p.section === sec));
+    (!sec || p.section === sec) &&
+    (!tag || (p.tags || []).includes(tag)));
   byId('policyCount').textContent = `${data.length} records`;
   byId('policyRows').innerHTML = data.length ? data.slice(0, 150).map(({p, idx}, i) => {
     const entries = policyFormEntries(p);
     const pending = pendingCount(idx);
-    return `<tr><td>${riskBadge(p.risk)}</td><td><div class="policytitle" onclick="openPolicy(${idx})">${esc(p.policy)} · ${esc(p.title)}</div><div class="subtle">${esc(p.section)}${p.provisional ? ' · <span class="status pending">Provisional — from tracker mapping</span>' : ''}${pending ? ` · <span class="status pendingpill">${pending} pending upload${pending === 1 ? '' : 's'}</span>` : ''}</div></td><td>${esc(p.regulatory || 'Corporate')}</td><td>${entries.length ? entries.map(e => `<button class="doclink${e.controlled ? '' : ' expected'}" style="padding:4px 7px;margin:2px 3px 2px 0" title="${e.controlled ? 'Open the controlled form' : 'Expected from the tracker — not yet uploaded'}" onclick="openLinkedForm('${esc(e.id)}')">${esc(e.id)}</button>`).join('') : '—'}</td><td>${statusFor(p, i)}</td><td><button class="btn outline touchbtn" onclick="openPolicy(${idx})">Open</button></td></tr>`;
+    return `<tr><td>${riskBadge(p.risk)}</td><td><div class="policytitle" onclick="openPolicy(${idx})">${esc(p.policy)} · ${esc(p.title)}</div><div class="subtle">${esc(p.section)}${p.provisional ? ' · <span class="status pending">Provisional — from tracker mapping</span>' : ''}${pending ? ` · <span class="status pendingpill">${pending} pending upload${pending === 1 ? '' : 's'}</span>` : ''}</div>${tagChips(p)}</td><td>${esc(p.regulatory || 'Corporate')}</td><td>${entries.length ? entries.map(e => `<button class="doclink${e.controlled ? '' : ' expected'}" style="padding:4px 7px;margin:2px 3px 2px 0" title="${e.controlled ? 'Open the controlled form' : 'Expected from the tracker — not yet uploaded'}" onclick="openLinkedForm('${esc(e.id)}')">${esc(e.id)}</button>`).join('') : '—'}</td><td>${statusFor(p, i)}</td><td><button class="btn outline touchbtn" onclick="openPolicy(${idx})">Open</button></td></tr>`;
   }).join('') : '<tr><td colspan="6" class="subtle" style="text-align:center;padding:26px">No policies match the current filters.</td></tr>';
 }
 function resetLibraryFilters() {
   byId('search').value = '';
   byId('sectionFilter').value = '';
   byId('riskFilter').value = '';
+  byId('tagFilter').value = '';
   renderPolicyTable();
   toast('Library filters reset');
 }
@@ -343,6 +348,7 @@ function filterSection(s) {
   showView('library', 'Policy & Form Library');
   byId('sectionFilter').value = s;
   byId('riskFilter').value = '';
+  byId('tagFilter').value = '';
   byId('search').value = '';
   renderPolicyTable();
 }
@@ -358,6 +364,7 @@ function openPolicy(idx) {
   byId('modalContent').innerHTML = `<div style="display:flex;justify-content:space-between;gap:15px;align-items:start"><div><div class="subtle">${esc(p.section)}</div><h3>${esc(p.policy)} · ${esc(p.title)}</h3></div>${riskBadge(p.risk)}</div>
 <div class="risk-legend"><span class="r${p.risk}">Risk ${p.risk}: ${esc(p.basis || 'Enterprise risk classification')}</span><span style="background:#175c92">${esc(p.regulatory || 'Corporate')}</span></div>
 <div class="formrow"><div class="field"><label>Owner</label><input value="Corporate Policy Administrator" readonly></div><div class="field"><label>Next Review</label><input value="09/30/2026" readonly></div></div>
+<div id="policyTagsBox">${policyTagsEditor(idx)}</div>
 <div class="docpreview"><b>Controlled Policy Preview</b><p>This prototype connects the enterprise policy record to its controlled document, associated forms, revision history, and employee acknowledgements. The production system would render the approved PDF/DOCX here and prevent obsolete versions from being used.</p><p><b>Notification rule:</b> Any approved revision creates a group notification and re-acknowledgement task for the assigned audience.</p></div>
 <div style="margin-top:14px"><div class="panelhead" style="margin-bottom:6px"><h4 style="font-size:15px">Forms Attached To This Policy</h4><span class="pill">${formList.length} linked</span></div>${formList.length ? formList.join('') : '<div class="subtle" style="padding:14px;text-align:center">No forms are linked to this policy.</div>'}</div>
 <div style="display:none"></div>
@@ -441,6 +448,7 @@ function selectTocPolicy(idx) {
   trackerOnly.forEach(id => cards.push(`<div class="form-info-card"><div class="form-source">Tracker-Linked Form</div><h6>Form ${esc(id)}</h6><div class="subtle">Referenced by the enterprise tracker. Version, owner, roles, departments, facilities and revision history are managed once the form is brought under control.</div></div>`));
   byId('tocPolicyInfo').innerHTML = `<div style="display:flex;justify-content:space-between;gap:12px;align-items:start"><div><div class="subtle">${esc(p.section)}</div><h3 style="margin:4px 0 8px">${esc(p.policy)} · ${esc(p.title)}</h3></div>${riskBadge(p.risk)}</div>
 <div class="risk-legend"><span class="r${p.risk}">Risk ${p.risk}: ${esc(p.basis || 'Enterprise risk classification')}</span><span style="background:#175c92">${esc(p.regulatory || 'Corporate')}</span></div>
+${tagChips(p)}
 <div class="formrow"><div class="field"><label>Current Revision</label><input value="${esc(p.revision || 'Current controlled version')}" readonly></div><div class="field"><label>Total Linked Forms</label><input value="${cards.length}" readonly></div></div>
 <div style="margin-top:13px"><div class="panelhead" style="margin-bottom:7px"><h4>Forms Associated With This Policy</h4><span class="pill">${cards.length} linked</span></div>${cards.length ? cards.join('') : '<div class="toc-empty" style="padding:18px">No forms are currently linked to this policy.</div>'}</div>
 ${pendingBlock(idx)}
@@ -485,6 +493,9 @@ async function init() {
   renderSecurityRoles();
   renderUsers();
   renderUserPreview();
+  renderTagFilter();
+  renderTagPolicyPicker();
+  renderTags();
   renderSignedInUser();
   byId('previewRole').innerHTML = `<option value="__self__">My role — ${esc(securityRoleOf(currentUser()))}</option>` +
     SECURITY_ROLES.map(r => `<option value="${esc(r.name)}">${esc(r.name)}</option>`).join('');
@@ -2006,4 +2017,240 @@ function renderUsers() {
 <td><span class="status ${e.status === 'Active' ? 'good' : 'pending'}">${esc(e.status)}</span></td>
 <td><div style="display:flex;gap:5px;flex-wrap:wrap"><button class="btn outline" style="padding:5px 9px;font-size:11px" onclick="editUser('${esc(e.id)}')">Edit</button><button class="btn outline" style="padding:5px 9px;font-size:11px" onclick="toggleUser('${esc(e.id)}')">${e.status === 'Active' ? 'Deactivate' : 'Activate'}</button><button class="btn outline" style="padding:5px 9px;font-size:11px" onclick="deleteUser('${esc(e.id)}')">Remove</button></div></td></tr>`;
   }).join('') : '<tr><td colspan="7" class="subtle" style="text-align:center;padding:24px">No users match the current filters.</td></tr>';
+}
+
+
+/* ===================================================================== tags
+   Administrator-defined labels that cut across TOC sections — "Forensic
+   Programming", for example — so staff can pull every policy on a theme with
+   one search or filter. Administrators create tags here and attach them to
+   policies, either in bulk from the tag editor or one at a time from the
+   policy record. Everyone can see and filter by them.
+   ========================================================================= */
+
+const TAGS = [];               // {id, name, color, description}; id is the database id once saved
+let tagSeq = 0;
+let editingTagId = null;
+const tagPicked = new Set();   // policy indexes chosen in the tag editor
+
+const TAG_COLORS = {blue: 'Blue', green: 'Green', amber: 'Amber', red: 'Red', purple: 'Purple', slate: 'Slate'};
+const tagById = id => TAGS.find(t => t.id === id);
+const tagNamesOf = p => (p.tags || []).map(id => tagById(id)?.name).filter(Boolean);
+const policyKeyOf = p => `${p.section}|${p.policy}|${p.title}`;
+const isStoredTag = id => !String(id).startsWith('local-');
+const policiesWithTag = id => POLICIES.map((p, idx) => ({p, idx})).filter(({p}) => (p.tags || []).includes(id));
+
+function tagChip(t, remove) {
+  const color = TAG_COLORS[t.color] ? t.color : 'blue';
+  return `<span class="tagchip c-${color}" title="${esc(t.description || t.name)}"><button type="button" class="tagname" onclick="event.stopPropagation();filterTag('${esc(t.id)}')">${esc(t.name)}</button>${remove ? `<button type="button" class="tagx" title="Remove this tag" aria-label="Remove ${esc(t.name)}" onclick="event.stopPropagation();${remove}">×</button>` : ''}</span>`;
+}
+
+function tagChips(p) {
+  const tags = (p.tags || []).map(tagById).filter(Boolean);
+  return tags.length ? `<div class="tagrow">${tags.map(t => tagChip(t)).join('')}</div>` : '';
+}
+
+function filterTag(id) {
+  byId('policyModal').classList.remove('show');
+  showView('library', 'Policy & Form Library');
+  byId('search').value = '';
+  byId('sectionFilter').value = '';
+  byId('riskFilter').value = '';
+  byId('tagFilter').value = id;
+  renderPolicyTable();
+}
+
+function renderTagFilter() {
+  const el = byId('tagFilter');
+  if (!el) return;
+  const current = el.value;
+  el.innerHTML = '<option value="">All tags</option>' +
+    TAGS.slice().sort((a, b) => a.name.localeCompare(b.name))
+      .map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('');
+  el.value = tagById(current) ? current : '';
+  byId('tagNavCount').textContent = TAGS.length;
+}
+
+/* The tag block on the policy record: chips for everyone, add and remove
+   controls for administrators. */
+function policyTagsEditor(idx) {
+  const p = POLICIES[idx];
+  const on = (p.tags || []).map(tagById).filter(Boolean);
+  const admin = isAdmin();
+  const chips = on.length
+    ? on.map(t => tagChip(t, admin ? `removeTagFromPolicy(${idx}, '${esc(t.id)}')` : '')).join('')
+    : '<span class="subtle">No tags</span>';
+  const available = TAGS.filter(t => !(p.tags || []).includes(t.id)).sort((a, b) => a.name.localeCompare(b.name));
+  const adder = !admin ? ''
+    : !TAGS.length ? `<span class="subtle">No tags exist yet — <button type="button" class="linkbtn" onclick="byId('policyModal').classList.remove('show');showView('tags','Tag Management')">create one</button></span>`
+    : available.length ? `<select class="select tagadd" aria-label="Add a tag" onchange="if(this.value)addTagToPolicy(${idx}, this.value)"><option value="">+ Add tag…</option>${available.map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}</select>`
+    : '';
+  return `<div class="field" style="margin:10px 0 14px"><label>Tags</label><div class="tagrow" style="align-items:center">${chips}${adder}</div></div>`;
+}
+
+function refreshAfterTagChange(idx) {
+  if (idx !== undefined && byId('policyModal').classList.contains('show')) byId('policyTagsBox').innerHTML = policyTagsEditor(idx);
+  renderTagFilter();
+  renderPolicyTable();
+  renderTags();
+  if (currentSection) renderTocPolicyList();
+}
+
+async function addTagToPolicy(idx, tagId) {
+  if (!isAdmin()) { toast('Tagging policies is limited to administrators'); return; }
+  const p = POLICIES[idx], t = tagById(tagId);
+  if (!p || !t || (p.tags || []).includes(tagId)) return;
+  if (isStoredTag(tagId) && !await persist(`Tagging ${p.policy}`, () => FPC.setPolicyTag(policyKeyOf(p), tagId, true))) {
+    refreshAfterTagChange(idx);
+    return;
+  }
+  p.tags = [...(p.tags || []), tagId];
+  refreshAfterTagChange(idx);
+  toast(`${p.policy} tagged ${t.name}`);
+}
+
+async function removeTagFromPolicy(idx, tagId) {
+  if (!isAdmin()) { toast('Tagging policies is limited to administrators'); return; }
+  const p = POLICIES[idx], t = tagById(tagId);
+  if (!p || !t) return;
+  if (isStoredTag(tagId) && !await persist(`Removing ${t.name} from ${p.policy}`, () => FPC.setPolicyTag(policyKeyOf(p), tagId, false))) return;
+  p.tags = (p.tags || []).filter(id => id !== tagId);
+  refreshAfterTagChange(idx);
+  toast(`${t.name} removed from ${p.policy}`);
+}
+
+/* ---------- tag management view ---------- */
+function renderTagPolicyPicker() {
+  const el = byId('tagPolicies');
+  if (!el) return;
+  const q = (byId('tagPolicySearch').value || '').toLowerCase();
+  const matches = POLICIES.map((p, idx) => ({p, idx}))
+    .filter(({p}) => !q || (p.policy + ' ' + p.title + ' ' + p.section).toLowerCase().includes(q))
+    .slice(0, 400);
+  el.innerHTML = matches.map(({p, idx}) =>
+    `<option value="${idx}" ${tagPicked.has(idx) ? 'selected' : ''}>${esc(p.policy)} · ${esc(p.title)} — ${esc(p.section)}</option>`).join('');
+  renderTagPickSummary();
+}
+
+// the list is filtered, so only the options on screen change the selection
+function onTagPolicyPick() {
+  [...byId('tagPolicies').options].forEach(o => o.selected ? tagPicked.add(Number(o.value)) : tagPicked.delete(Number(o.value)));
+  renderTagPickSummary();
+}
+function pickShownTagPolicies(on) {
+  [...byId('tagPolicies').options].forEach(o => { o.selected = on; });
+  onTagPolicyPick();
+}
+function unpickTagPolicy(idx) {
+  tagPicked.delete(idx);
+  renderTagPolicyPicker();
+}
+
+function renderTagPickSummary() {
+  const picked = [...tagPicked].sort((a, b) => a - b);
+  byId('tagPickSummary').innerHTML = picked.length
+    ? `<b>${picked.length} polic${picked.length === 1 ? 'y' : 'ies'} selected</b><div class="chips" style="margin-top:6px">${picked.slice(0, 40).map(i =>
+        `<span class="assign-chip">${esc(POLICIES[i].policy)} · ${esc(POLICIES[i].title)} <button type="button" class="tagx" aria-label="Remove" onclick="unpickTagPolicy(${i})">×</button></span>`).join('')}${picked.length > 40 ? `<span class="subtle">+${picked.length - 40} more</span>` : ''}</div>`
+    : '<span class="subtle">No policies selected — the tag can be saved now and attached to policies later.</span>';
+}
+
+function clearTagEditor() {
+  editingTagId = null;
+  tagPicked.clear();
+  byId('tagEditorTitle').textContent = 'Create Tag';
+  byId('tagName').value = '';
+  byId('tagColor').value = 'blue';
+  byId('tagDescription').value = '';
+  byId('tagPolicySearch').value = '';
+  renderTagPolicyPicker();
+}
+
+function editTag(id) {
+  const t = tagById(id);
+  if (!t) return;
+  editingTagId = id;
+  tagPicked.clear();
+  policiesWithTag(id).forEach(({idx}) => tagPicked.add(idx));
+  byId('tagEditorTitle').textContent = `Edit Tag — ${t.name}`;
+  byId('tagName').value = t.name;
+  byId('tagColor').value = TAG_COLORS[t.color] ? t.color : 'blue';
+  byId('tagDescription').value = t.description || '';
+  byId('tagPolicySearch').value = '';
+  renderTagPolicyPicker();
+  byId('tagName').focus();
+}
+
+async function saveTag() {
+  if (!isAdmin()) { toast('Managing tags is limited to administrators'); return; }
+  const name = byId('tagName').value.trim().replace(/\s+/g, ' ');
+  if (!name) { toast('A tag needs a name'); return; }
+  if (name.length > 60) { toast('Keep tag names to 60 characters or fewer'); return; }
+  if (TAGS.some(t => t.name.toLowerCase() === name.toLowerCase() && t.id !== editingTagId)) {
+    toast(`A tag named "${name}" already exists`);
+    return;
+  }
+  const existing = editingTagId ? tagById(editingTagId) : null;
+  const rec = {name, color: byId('tagColor').value, description: byId('tagDescription').value.trim()};
+  const before = existing ? policiesWithTag(existing.id).map(({p}) => policyKeyOf(p)) : [];
+  const after = [...tagPicked].map(i => policyKeyOf(POLICIES[i]));
+
+  let id = existing ? existing.id : `local-${++tagSeq}`;
+  if (dbReady && (!existing || isStoredTag(existing.id))) {
+    let savedId = null;
+    const ok = await persist(`Tag ${name}`, async () => {
+      const res = await FPC.saveTag({...rec, dbId: existing ? existing.id : null});
+      if (!res.ok) return res;
+      savedId = res.id;
+      return FPC.setTagPolicies(res.id, after, before);
+    });
+    if (!savedId) return;          // the tag itself did not save; nothing changes here
+    id = savedId;
+    if (!ok) toast(`Tag ${name} saved, but its policy list did not — open it and save again`);
+  } else if (!dbReady) {
+    toast(`Tag ${name} saved in this session only — not connected to the database`);
+  }
+
+  if (existing) Object.assign(existing, rec);
+  else TAGS.push({id, ...rec});
+  const chosen = new Set(tagPicked);
+  POLICIES.forEach((p, idx) => {
+    const has = (p.tags || []).includes(id);
+    if (chosen.has(idx) && !has) p.tags = [...(p.tags || []), id];
+    if (!chosen.has(idx) && has) p.tags = p.tags.filter(x => x !== id);
+  });
+  if (dbReady) toast(`Tag ${name} saved · ${chosen.size} polic${chosen.size === 1 ? 'y' : 'ies'}`);
+  clearTagEditor();
+  refreshAfterTagChange();
+}
+
+async function deleteTag(id) {
+  if (!isAdmin()) { toast('Managing tags is limited to administrators'); return; }
+  const t = tagById(id);
+  if (!t) return;
+  const n = policiesWithTag(id).length;
+  if (!confirm(`Delete the tag "${t.name}"? It is removed from ${n} polic${n === 1 ? 'y' : 'ies'}. The policies themselves are not changed.`)) return;
+  if (isStoredTag(id) && !await persist(`Deleting tag ${t.name}`, () => FPC.deleteTag(id, t.name))) return;
+  TAGS.splice(TAGS.indexOf(t), 1);
+  POLICIES.forEach(p => { if ((p.tags || []).includes(id)) p.tags = p.tags.filter(x => x !== id); });
+  if (editingTagId === id) clearTagEditor();
+  refreshAfterTagChange();
+  toast(`Tag ${t.name} deleted`);
+}
+
+function renderTags() {
+  const host = byId('tagsList');
+  if (!host) return;
+  const q = (byId('tagSearch').value || '').toLowerCase();
+  const list = TAGS.filter(t => !q || (t.name + ' ' + (t.description || '')).toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  byId('tagCount').textContent = `${TAGS.length} tag${TAGS.length === 1 ? '' : 's'}`;
+  const offline = dbReady && FPC.tagsAvailable === false
+    ? '<div class="rulebox" style="margin-bottom:10px"><b>Tags are not set up in the database yet.</b> Run <code>db/migrations/003_tags.sql</code>, then reload — until then tags last only for this session.</div>' : '';
+  host.innerHTML = offline + (list.length ? list.map(t => {
+    const n = policiesWithTag(t.id).length;
+    return `<div class="form-info-card" style="padding:11px 12px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:start;flex-wrap:wrap">
+<div style="min-width:0">${tagChip(t)}<div class="subtle" style="margin-top:5px">${t.description ? esc(t.description) : 'No description'}</div></div>
+<span class="pill">${n} polic${n === 1 ? 'y' : 'ies'}</span></div>
+<div style="display:flex;gap:6px;margin-top:9px;flex-wrap:wrap"><button class="btn outline" style="padding:5px 9px;font-size:11px" onclick="filterTag('${esc(t.id)}')" ${n ? '' : 'disabled'}>View policies</button><button class="btn outline" style="padding:5px 9px;font-size:11px" onclick="editTag('${esc(t.id)}')">Edit</button><button class="btn outline" style="padding:5px 9px;font-size:11px" onclick="deleteTag('${esc(t.id)}')">Delete</button></div></div>`;
+  }).join('') : `<div class="toc-empty" style="padding:22px">${TAGS.length ? 'No tags match this search.' : 'No tags yet. Create one on the left — for example <b>Forensic Programming</b> — and choose the policies it applies to.'}</div>`);
 }

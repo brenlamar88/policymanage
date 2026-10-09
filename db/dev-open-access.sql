@@ -22,7 +22,8 @@ begin
     'facility','department','hospital_role','toc_section','app_user','user_role',
     'user_department','storage_object','policy','policy_version','form','form_version',
     'policy_form_link','policy_expected_form','document_attachment','assignment_rule',
-    'assignment','acknowledgement','notification','notification_recipient'
+    'assignment','acknowledgement','notification','notification_recipient',
+    'tag','policy_tag'
   ] loop
     execute format('grant select, insert, update, delete on %I to anon', t);
     execute format($p$drop policy if exists %1$s_dev_open on %1$I$p$, t);

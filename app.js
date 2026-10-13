@@ -165,6 +165,7 @@ async function connectDatabase() {
   SECTIONS.length = 0;
   SECTIONS.push(...[...new Set(loaded.policies.map(p => p.section))]);
   restoreVersions(loaded.versions);
+  restoreTags(loaded.tags, loaded.policyTags);
   dbReady = true;
   setDbStatus('live', 'Saving to Supabase', `${loaded.policies.length} policies, ${loaded.forms.length} forms, ${loaded.users.length} users loaded`);
 }
@@ -321,21 +322,26 @@ function renderPolicyTable() {
   const q = byId('search').value.toLowerCase();
   const risk = byId('riskFilter').value;
   const sec = byId('sectionFilter').value;
-  const data = POLICIES.map((p, idx) => ({p, idx})).filter(({p}) =>
-    (!q || (p.title + ' ' + p.policy + ' ' + p.section).toLowerCase().includes(q)) &&
+  const data = POLICIES.map((p, idx) => ({p, idx})).filter(({p, idx}) =>
+    // tags join the free-text haystack, so one search box covers number,
+    // title, section and tag rather than making people pick a mode
+    (!q || (p.title + ' ' + p.policy + ' ' + p.section + ' ' + tagsFor(idx).join(' ')).toLowerCase().includes(q)) &&
     (!risk || String(p.risk) === risk) &&
-    (!sec || p.section === sec));
+    (!sec || p.section === sec) &&
+    (!tagFilter || tagsFor(idx).some(n => n.toLowerCase() === tagFilter.toLowerCase())));
   byId('policyCount').textContent = `${data.length} records`;
   byId('policyRows').innerHTML = data.length ? data.slice(0, 150).map(({p, idx}, i) => {
     const entries = policyFormEntries(p);
     const pending = pendingCount(idx);
-    return `<tr><td>${riskBadge(p.risk)}</td><td><div class="policytitle" onclick="openPolicy(${idx})">${esc(p.policy)} · ${esc(p.title)}</div><div class="subtle">${esc(p.section)}${p.provisional ? ' · <span class="status pending">Provisional — from tracker mapping</span>' : ''}${pending ? ` · <span class="status pendingpill">${pending} pending upload${pending === 1 ? '' : 's'}</span>` : ''}</div></td><td>${esc(p.regulatory || 'Corporate')}</td><td>${entries.length ? entries.map(e => `<button class="doclink${e.controlled ? '' : ' expected'}" style="padding:4px 7px;margin:2px 3px 2px 0" title="${e.controlled ? 'Open the controlled form' : 'Expected from the tracker — not yet uploaded'}" onclick="openLinkedForm('${esc(e.id)}')">${esc(e.id)}</button>`).join('') : '—'}</td><td>${statusFor(p, i)}</td><td><button class="btn outline touchbtn" onclick="openPolicy(${idx})">Open</button></td></tr>`;
+    return `<tr><td>${riskBadge(p.risk)}</td><td><div class="policytitle" onclick="openPolicy(${idx})">${esc(p.policy)} · ${esc(p.title)}</div><div class="subtle">${esc(p.section)}${p.provisional ? ' · <span class="status pending">Provisional — from tracker mapping</span>' : ''}${pending ? ` · <span class="status pendingpill">${pending} pending upload${pending === 1 ? '' : 's'}</span>` : ''}</div>${tagsFor(idx).length ? `<div style="margin-top:4px">${tagChips(idx)}</div>` : ''}</td><td>${esc(p.regulatory || 'Corporate')}</td><td>${entries.length ? entries.map(e => `<button class="doclink${e.controlled ? '' : ' expected'}" style="padding:4px 7px;margin:2px 3px 2px 0" title="${e.controlled ? 'Open the controlled form' : 'Expected from the tracker — not yet uploaded'}" onclick="openLinkedForm('${esc(e.id)}')">${esc(e.id)}</button>`).join('') : '—'}</td><td>${statusFor(p, i)}</td><td><button class="btn outline touchbtn" onclick="openPolicy(${idx})">Open</button></td></tr>`;
   }).join('') : '<tr><td colspan="6" class="subtle" style="text-align:center;padding:26px">No policies match the current filters.</td></tr>';
 }
 function resetLibraryFilters() {
   byId('search').value = '';
   byId('sectionFilter').value = '';
   byId('riskFilter').value = '';
+  tagFilter = '';
+  renderTagFilter();
   renderPolicyTable();
   toast('Library filters reset');
 }
@@ -344,6 +350,157 @@ function filterSection(s) {
   byId('sectionFilter').value = s;
   byId('riskFilter').value = '';
   byId('search').value = '';
+  renderPolicyTable();
+}
+
+/* ===================================================================== tags
+
+   Tags exist to make the library searchable across the grain of the
+   numbering: "survey-ready", "IOP", "state-LA", "needs-review". Any
+   administrator can add them; everyone can see and search by them, because a
+   search aid only half the staff can use is not much of a search aid.
+
+   Adding and removing is gated on isAdmin(), which is an INTERFACE control.
+   With no sign-in and the database open, it is not a security boundary --
+   anyone with the URL and the key can write to policy_tag directly. The
+   gate becomes real when Microsoft sign-in and RLS go back on. */
+
+const TAG_COLORS = ['blue', 'green', 'amber', 'red', 'purple', 'slate'];
+let TAG_LIBRARY = new Map();   // lower(name) -> {name, color}
+let POLICY_TAGS = new Map();   // policy index -> [tag names]
+let tagFilter = '';
+
+function restoreTags(tags, byKey) {
+  TAG_LIBRARY = new Map();
+  (tags || []).forEach(t => TAG_LIBRARY.set(t.name.toLowerCase(), {name: t.name, color: t.color || 'blue'}));
+  POLICY_TAGS = new Map();
+  if (byKey && byKey.size) {
+    POLICIES.forEach((p, idx) => {
+      const names = byKey.get(`${p.section}|${p.policy}|${p.title}`);
+      if (names && names.length) POLICY_TAGS.set(idx, [...names]);
+    });
+  }
+  renderTagFilter();
+}
+
+const tagsFor = idx => POLICY_TAGS.get(idx) || [];
+const tagColor = name => (TAG_LIBRARY.get(String(name).toLowerCase()) || {}).color || 'blue';
+
+/* A tag's canonical spelling is whatever it was first given, so "iop" typed
+   later shows as the existing "IOP" rather than creating a second chip. */
+const canonicalTag = name => {
+  const hit = TAG_LIBRARY.get(String(name).trim().toLowerCase());
+  return hit ? hit.name : String(name).trim();
+};
+
+function tagChips(idx, {clickable = true} = {}) {
+  const names = tagsFor(idx);
+  if (!names.length) return '';
+  return names.map(n =>
+    `<span class="tagchip t-${esc(tagColor(n))}"${clickable ? ` onclick="filterByTag('${esc(n).replace(/'/g, "\\'")}')" title="Show everything tagged ${esc(n)}" style="cursor:pointer"` : ''}>${esc(n)}</span>`
+  ).join('');
+}
+
+function renderTagFilter() {
+  const sel = byId('tagFilter');
+  if (!sel) return;
+  const used = new Set();
+  POLICY_TAGS.forEach(list => list.forEach(n => used.add(canonicalTag(n))));
+  const names = [...used].sort((a, b) => a.localeCompare(b));
+  sel.innerHTML = `<option value="">All tags</option>` +
+    names.map(n => `<option value="${esc(n)}" ${n === tagFilter ? 'selected' : ''}>${esc(n)}</option>`).join('');
+  sel.style.display = names.length ? '' : 'none';
+}
+
+function filterByTag(name) {
+  showView('library', 'Policy & Form Library');
+  byId('policyModal').classList.remove('show');
+  tagFilter = canonicalTag(name);
+  byId('search').value = '';
+  byId('sectionFilter').value = '';
+  byId('riskFilter').value = '';
+  renderTagFilter();
+  renderPolicyTable();
+  toast(`Showing policies tagged ${tagFilter}`);
+}
+
+function setTagFilter(value) {
+  tagFilter = value;
+  renderPolicyTable();
+}
+
+/* ---- the admin-only editor, rendered inside the policy record modal ---- */
+
+function tagEditor(idx) {
+  if (!isAdmin()) {
+    const names = tagsFor(idx);
+    return names.length
+      ? `<div style="margin-top:14px"><div class="panelhead" style="margin-bottom:6px"><h4 style="font-size:15px">Tags</h4></div><div>${tagChips(idx)}</div></div>`
+      : '';
+  }
+  const suggestions = [...TAG_LIBRARY.values()]
+    .filter(t => !tagsFor(idx).some(n => n.toLowerCase() === t.name.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return `<div style="margin-top:14px" class="admin-only">
+<div class="panelhead" style="margin-bottom:6px"><h4 style="font-size:15px">Tags</h4><span class="subtle">Administrators only · used for search</span></div>
+<div id="tagList-${idx}" style="margin-bottom:8px">${
+  tagsFor(idx).length
+    ? tagsFor(idx).map(n => `<span class="tagchip t-${esc(tagColor(n))}">${esc(n)}<button class="tagx" title="Remove this tag" onclick="removeTag(${idx},'${esc(n).replace(/'/g, "\\'")}')">×</button></span>`).join('')
+    : '<span class="subtle">No tags yet.</span>'}</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+<input id="tagInput-${idx}" class="rowselect" style="max-width:190px" placeholder="New or existing tag"
+       list="tagOptions" onkeydown="if(event.key==='Enter'){event.preventDefault();addTag(${idx});}">
+<select id="tagColor-${idx}" class="rowselect" style="max-width:110px">${
+  TAG_COLORS.map(c => `<option value="${c}">${c}</option>`).join('')}</select>
+<button class="btn outline" style="padding:6px 11px;font-size:11px" onclick="addTag(${idx})">Add tag</button>
+</div>
+<datalist id="tagOptions">${suggestions.map(t => `<option value="${esc(t.name)}">`).join('')}</datalist>
+${suggestions.length ? `<div class="subtle" style="margin-top:6px">In use: ${suggestions.slice(0, 12).map(t => `<span class="tagchip t-${esc(t.color)}" style="cursor:pointer" onclick="addTag(${idx},'${esc(t.name).replace(/'/g, "\\'")}')">${esc(t.name)}</span>`).join('')}</div>` : ''}
+</div>`;
+}
+
+async function addTag(idx, preset) {
+  if (!isAdmin()) { toast('Only administrators can change tags'); return; }
+  const input = byId(`tagInput-${idx}`);
+  const raw = preset !== undefined ? preset : (input ? input.value : '');
+  const name = canonicalTag(raw);
+  if (!name) { toast('Type a tag name first'); return; }
+  if (name.length > 40) { toast('Tag names are limited to 40 characters'); return; }
+  if (tagsFor(idx).some(n => n.toLowerCase() === name.toLowerCase())) {
+    toast(`This policy is already tagged ${name}`);
+    return;
+  }
+  // an existing tag keeps its colour; the picker only applies to a new one
+  const known = TAG_LIBRARY.get(name.toLowerCase());
+  const color = known ? known.color : (byId(`tagColor-${idx}`) || {}).value || 'blue';
+
+  const list = tagsFor(idx);
+  POLICY_TAGS.set(idx, [...list, name]);
+  TAG_LIBRARY.set(name.toLowerCase(), {name, color});
+  if (input && preset === undefined) input.value = '';
+
+  const p = POLICIES[idx];
+  const ok = await persist(`Tag ${name}`, () => FPC.tagPolicy(`${p.section}|${p.policy}|${p.title}`, name, color));
+  if (dbReady && !ok) {
+    // roll the chip back rather than show a tag that is not stored
+    POLICY_TAGS.set(idx, tagsFor(idx).filter(n => n.toLowerCase() !== name.toLowerCase()));
+  }
+  openPolicy(idx);
+  renderTagFilter();
+  renderPolicyTable();
+}
+
+async function removeTag(idx, name) {
+  if (!isAdmin()) { toast('Only administrators can change tags'); return; }
+  const kept = tagsFor(idx).filter(n => n.toLowerCase() !== String(name).toLowerCase());
+  POLICY_TAGS.set(idx, kept);
+
+  const p = POLICIES[idx];
+  const ok = await persist(`Removing tag ${name}`, () => FPC.untagPolicy(`${p.section}|${p.policy}|${p.title}`, name));
+  if (dbReady && !ok) POLICY_TAGS.set(idx, [...kept, name]);
+
+  openPolicy(idx);
+  renderTagFilter();
   renderPolicyTable();
 }
 
@@ -360,7 +517,7 @@ function openPolicy(idx) {
 <div class="formrow"><div class="field"><label>Owner</label><input value="Corporate Policy Administrator" readonly></div><div class="field"><label>Next Review</label><input value="09/30/2026" readonly></div></div>
 <div class="docpreview"><b>Controlled Policy Preview</b><p>This prototype connects the enterprise policy record to its controlled document, associated forms, revision history, and employee acknowledgements. The production system would render the approved PDF/DOCX here and prevent obsolete versions from being used.</p><p><b>Notification rule:</b> Any approved revision creates a group notification and re-acknowledgement task for the assigned audience.</p></div>
 <div style="margin-top:14px"><div class="panelhead" style="margin-bottom:6px"><h4 style="font-size:15px">Forms Attached To This Policy</h4><span class="pill">${formList.length} linked</span></div>${formList.length ? formList.join('') : '<div class="subtle" style="padding:14px;text-align:center">No forms are linked to this policy.</div>'}</div>
-<div style="display:none"></div>
+${tagEditor(idx)}
 <div class="readtrack"><div><b>84%</b><span class="subtle">Acknowledged</span></div><div><b>118</b><span class="subtle">Assigned</span></div><div><b>19</b><span class="subtle">Outstanding</span></div></div>
 <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px"><button class="btn outline touchbtn" onclick="byId('policyModal').classList.remove('show');openVersionHistory(${idx})">Version History</button><button class="btn primary touchbtn" onclick="acknowledge('${esc(p.policy)}')">Acknowledge Policy</button></div>`;
   byId('policyModal').classList.add('show');

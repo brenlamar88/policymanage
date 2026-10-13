@@ -15,7 +15,7 @@ const FPC = {
   lastError: null,
   ids: {policyByKey: new Map(), formByCode: new Map(), userByEmail: new Map(),
         sectionByName: new Map(), facilityByName: new Map(),
-        departmentByName: new Map(), roleByName: new Map()}
+        departmentByName: new Map(), roleByName: new Map(), tagByName: new Map()}
 };
 
 const policyKey = p => `${p.section}|${p.policy}|${p.title}`;
@@ -168,7 +168,31 @@ FPC.hydrate = async function () {
     if (u && d.department) u.departments.push(d.department.name);
   });
 
-  return {policies: nextPolicies, forms: nextForms, users: nextUsers, versions: versionsByKey};
+  // tags, and which policies carry them, keyed like the policies so the app
+  // can look them up by index
+  const [tags, policyTags] = await Promise.all([
+    c.from('tag').select('id,name,color,description').order('name'),
+    c.from('policy_tag').select('policy_id,tag_id')
+  ]);
+  const tagById = new Map();
+  (tags.data || []).forEach(t => {
+    tagById.set(t.id, t);
+    FPC.ids.tagByName.set(String(t.name).toLowerCase(), t.id);
+  });
+  const tagsByKey = new Map();
+  (policyTags.data || []).forEach(pt => {
+    const key = keyByPolicyId.get(pt.policy_id);
+    const tag = tagById.get(pt.tag_id);
+    if (!key || !tag) return;
+    if (!tagsByKey.has(key)) tagsByKey.set(key, []);
+    tagsByKey.get(key).push(tag.name);
+  });
+
+  return {
+    policies: nextPolicies, forms: nextForms, users: nextUsers, versions: versionsByKey,
+    tags: (tags.data || []).map(t => ({name: t.name, color: t.color, description: t.description})),
+    policyTags: tagsByKey
+  };
 };
 
 /* ----------------------------------------------------------------- write */
@@ -272,6 +296,64 @@ FPC.deleteUser = async function (email) {
   if (!FPC.connected) return {ok: false, reason: 'offline'};
   const {error} = await FPC.client.from('app_user').delete().eq('email', email);
   return error ? {ok: false, reason: error.message} : {ok: true};
+};
+
+/* -------------------------------------------------------------------- tags
+
+   Tags are a search aid, not a control: adding one is restricted to
+   administrators in the interface, but that restriction is interface-level
+   only while the database is open and nobody signs in. See docs/tags.md. */
+
+/* Creates the tag if it is new and returns its id. Tag names are citext and
+   unique, so "IOP" and "iop" are deliberately the same tag -- a search aid
+   that splits on capitalisation is worse than no search aid. */
+FPC.ensureTag = async function (name, color) {
+  if (!FPC.connected) return {ok: false, reason: 'offline'};
+  const clean = String(name || '').trim();
+  if (!clean) return {ok: false, reason: 'a tag needs a name'};
+
+  const cached = FPC.ids.tagByName.get(clean.toLowerCase());
+  if (cached) return {ok: true, id: cached, created: false};
+
+  const {data, error} = await FPC.client.from('tag')
+    .upsert({name: clean, color: color || 'blue'}, {onConflict: 'name'})
+    .select('id').single();
+  if (error) return {ok: false, reason: error.message};
+
+  FPC.ids.tagByName.set(clean.toLowerCase(), data.id);
+  await FPC.audit('tag.created', 'tag', data.id, {name: clean, color: color || 'blue'});
+  return {ok: true, id: data.id, created: true};
+};
+
+FPC.tagPolicy = async function (policyIdxKey, name, color) {
+  if (!FPC.connected) return {ok: false, reason: 'offline'};
+  const policyId = FPC.ids.policyByKey.get(policyIdxKey);
+  if (!policyId) return {ok: false, reason: 'policy not found in the database'};
+
+  const tag = await FPC.ensureTag(name, color);
+  if (!tag.ok) return tag;
+
+  // ignoreDuplicates: tagging something twice is a no-op, not an error
+  const {error} = await FPC.client.from('policy_tag')
+    .upsert({policy_id: policyId, tag_id: tag.id}, {onConflict: 'policy_id,tag_id', ignoreDuplicates: true});
+  if (error) return {ok: false, reason: error.message};
+
+  await FPC.audit('policy.tagged', 'policy', policyId, {tag: String(name).trim()});
+  return {ok: true};
+};
+
+FPC.untagPolicy = async function (policyIdxKey, name) {
+  if (!FPC.connected) return {ok: false, reason: 'offline'};
+  const policyId = FPC.ids.policyByKey.get(policyIdxKey);
+  const tagId = FPC.ids.tagByName.get(String(name || '').trim().toLowerCase());
+  if (!policyId || !tagId) return {ok: false, reason: 'policy or tag not found'};
+
+  const {error} = await FPC.client.from('policy_tag')
+    .delete().eq('policy_id', policyId).eq('tag_id', tagId);
+  if (error) return {ok: false, reason: error.message};
+
+  await FPC.audit('policy.untagged', 'policy', policyId, {tag: String(name).trim()});
+  return {ok: true};
 };
 
 /* Creates a policy the library has not seen before. Bulk upload needs this:

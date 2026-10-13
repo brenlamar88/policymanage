@@ -69,6 +69,13 @@ and names the fix for whichever step failed.
   to **Policy Administrator** in User Management if they should upload and publish for their
   own site.
 
+## Tags
+
+Administrators can tag policies for search; everyone can see and filter by
+them. Tags are case-insensitive, carry their own colour, and join number,
+title and section in one search box. See `docs/tags.md` — including the note
+that the restriction is interface-level while access is open.
+
 ## Roster from RAP
 
 The user roster syncs nightly from RAP (`rap.freedomhc.com`) inside Supabase —

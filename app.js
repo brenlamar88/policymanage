@@ -527,6 +527,10 @@ let versionSeq = 0;
 function versionsFor(idx) {
   if (!POLICY_VERSIONS.has(idx)) {
     const p = POLICIES[idx];
+    // A policy created by an upload has no tracker baseline to stand in for:
+    // its first file IS v1.0. Seeding one here would leave the policy showing
+    // a *published* version that has no document behind it.
+    if (p && p.createdByUpload) { POLICY_VERSIONS.set(idx, []); return POLICY_VERSIONS.get(idx); }
     POLICY_VERSIONS.set(idx, [{
       id: ++versionSeq,
       label: p.revision || 'v1.0',
@@ -581,7 +585,11 @@ function restoreVersions(byKey) {
 }
 
 function nextVersionLabel(idx) {
-  const nums = versionsFor(idx)
+  const list = versionsFor(idx);
+  // no history at all means a policy created by upload: its first file is
+  // the first version, so start at v1.0 rather than stepping to v1.1
+  if (!list.length) return 'v1.0';
+  const nums = list
     .map(v => parseFloat(String(v.label).replace(/^v/i, '')))
     .filter(n => !isNaN(n));
   return 'v' + ((nums.length ? Math.max(...nums) : 1) + 0.1).toFixed(1);
@@ -710,9 +718,16 @@ function inferKind(name) {
 
 /* Match "15008 Patient Rights v4.2.docx" -> policy 15008. Falls back to title
    overlap, and flags ambiguity when a policy number repeats (e.g. 622). */
+/* The policy number in a filename. Not \b(\d{3,5})\b: \b treats underscore
+   as a word character, so "4099_KITCHEN_AUDIT.pdf" yields nothing at all --
+   and underscores are everywhere in exported filenames. Separators here are
+   anything that is not a letter or a digit. */
+const NUMBER_IN_NAME = /(?:^|[^0-9A-Za-z])(\d{3,5})(?=[^0-9A-Za-z]|$)/;
+const policyNumberIn = base => (base.match(NUMBER_IN_NAME) || [])[1];
+
 function matchPolicy(name) {
   const base = name.replace(/\.[^.]+$/, '');
-  const num = (base.match(/\b(\d{3,5})\b/) || [])[1];
+  const num = policyNumberIn(base);
   const tokens = base.toLowerCase().split(/[^a-z0-9]+/).filter(t => t.length > 3);
   const score = p => {
     const title = p.title.toLowerCase();
@@ -729,6 +744,145 @@ function matchPolicy(name) {
   const ranked = POLICIES.map((p, i) => ({i, s: score(p)})).sort((a, b) => b.s - a.s)[0];
   if (ranked && ranked.s >= 2) return {idx: ranked.i, note: 'Matched on title — verify'};
   return {idx: null, note: 'No policy match — choose one'};
+}
+
+/* ---------------------------------------------------- new policies on upload
+
+   A file whose number is not in the library is usually a new policy, not a
+   mistake, so the queue offers to create it instead of only asking which
+   existing policy it belongs to. */
+
+const SECTIONS_SORTED = () => [...new Set(POLICIES.map(p => p.section))].sort();
+
+/* Policy numbers are banded by section — 1xxx admissions, 4xxx dietary,
+   11xxx medication — so the section can be inferred from the number. The
+   bands are not perfectly clean (transportation runs 622–6081, straight
+   through environment of care at 6000–6030), so this reports whether the
+   answer was unanimous and the caller treats a split as a guess to confirm. */
+function inferSection(num) {
+  const digits = String(num || '').replace(/\D/g, '');
+  for (let len = Math.min(digits.length, 5); len >= 1; len--) {
+    const prefix = digits.slice(0, len);
+    const tally = new Map();
+    POLICIES.forEach(p => {
+      if (String(p.policy).startsWith(prefix)) {
+        tally.set(p.section, (tally.get(p.section) || 0) + 1);
+      }
+    });
+    if (tally.size) {
+      const ranked = [...tally.entries()].sort((a, b) => b[1] - a[1]);
+      return {name: ranked[0][0], unanimous: tally.size === 1, rivals: ranked.length - 1};
+    }
+  }
+  return {name: 'UNASSIGNED', unanimous: false, rivals: 0};
+}
+
+/* Turns a filename into a proposed policy record. Everything it guesses is
+   editable in the queue before anything is written. */
+function parseNewPolicy(name) {
+  const base = name.replace(/\.[^.]+$/, '');
+  const num = policyNumberIn(base) || '';
+  const title = base
+    .replace(NUMBER_IN_NAME, ' ')
+    .replace(/[_\-.·]+/g, ' ')
+    // version noise: "v2", "rev B", "Revision 3", "final", "copy"
+    .replace(/\b(?:rev|revision|version|ver|v|final|draft|copy)\s*[.\-_]?\s*\d*[a-z]?\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+  const sec = inferSection(num);
+  return {
+    policy: num,
+    title: title || 'UNTITLED',
+    section: sec.name,
+    sectionGuess: !sec.unanimous,
+    risk: 3,
+    basis: 'Set during review',
+    regulatory: 'Corporate'
+  };
+}
+
+/* The note under a drafted row: says what will be created, and warns when
+   it looks like it might duplicate something already in the library. */
+function noteDraft(r) {
+  const d = r.draft;
+  if (!d.policy) { r.note = 'No number in the filename — set one before ingesting'; return; }
+  const clash = POLICIES.find(p => String(p.policy) === String(d.policy));
+  if (clash && clash.title !== d.title) {
+    r.note = `Will create a new policy — note ${d.policy} already exists as “${clash.title}”`;
+  } else if (d.sectionGuess) {
+    r.note = `Will create a new policy — section inferred from the number, confirm it`;
+  } else {
+    r.note = 'Will create a new policy';
+  }
+}
+
+function markAsNewPolicy(r) {
+  r.draft = parseNewPolicy(r.name);
+  r.targetIdx = null;
+  r.status = 'ready';
+  noteDraft(r);
+}
+
+/* Bulk: every unmatched document becomes a proposed new policy. This is the
+   path for loading a set of policies the library has never held. */
+function createNewForUnmatched() {
+  let n = 0;
+  QUEUE.forEach(r => {
+    if (r.kind === 'form' || r.status === 'done' || r.draft) return;
+    if (r.status === 'needs_match' || (r.status === 'ready' && r.targetIdx === null)) {
+      markAsNewPolicy(r);
+      n++;
+    }
+  });
+  renderQueue();
+  toast(n ? `${n} file${n === 1 ? '' : 's'} set to create a new policy — check the numbers and titles, then Start Upload`
+          : 'Nothing unmatched to create');
+}
+
+function draftEdit(id, field, value) {
+  const r = QUEUE.find(x => x.id === id);
+  if (!r || !r.draft) return;
+  if (field === 'policy') {
+    r.draft.policy = value.replace(/\D/g, '');
+    if (!r.draft.sectionLocked) {
+      const sec = inferSection(r.draft.policy);
+      r.draft.section = sec.name;
+      r.draft.sectionGuess = !sec.unanimous;
+    }
+  } else if (field === 'title') {
+    r.draft.title = value.trim().toUpperCase() || 'UNTITLED';
+  } else if (field === 'section') {
+    r.draft.section = value;
+    r.draft.sectionLocked = true;
+    r.draft.sectionGuess = false;
+  }
+  noteDraft(r);
+  renderQueue();
+}
+
+/* Adds the drafted policy to the in-memory library, or returns the index of
+   one that already covers the same number in the same section.
+
+   Matching ignores the title on purpose. The number is the policy's
+   identity, and two files for one new policy usually differ in the title
+   the filename implies -- "...WORKFLOW.pdf" and "...WORKFLOW rev B.pdf".
+   Keying on the title would make those two policies sharing one number,
+   which is precisely the mess this feature exists to avoid. They become two
+   versions of one policy instead. */
+function createPolicyFromDraft(d) {
+  const existing = POLICIES.findIndex(p =>
+    p.section === d.section && String(p.policy) === String(d.policy));
+  if (existing !== -1) return existing;
+  POLICIES.push({
+    section: d.section, policy: d.policy, title: d.title, forms: [],
+    departments: '', risk: d.risk || 3, basis: d.basis || 'Set during review',
+    regulatory: d.regulatory || 'Corporate', revision: '',
+    // suppresses the imported-baseline placeholder: this policy's first
+    // uploaded file is its v1.0, not a second version behind a phantom one
+    createdByUpload: true
+  });
+  return POLICIES.length - 1;
 }
 
 async function queueFiles(fileList) {
@@ -783,7 +937,8 @@ async function queueFiles(fileList) {
 
 function autoMatchAll() {
   QUEUE.forEach(r => {
-    if (r.status === 'done' || r.kind === 'form') return;
+    // a row already set to create a new policy is a decision, not a miss
+    if (r.status === 'done' || r.kind === 'form' || r.draft) return;
     const m = matchPolicy(r.name);
     r.targetIdx = m.idx;
     if (m.idx === null) { r.status = 'needs_match'; r.note = m.note; }
@@ -804,6 +959,21 @@ function targetLabel(row) {
     if (!row.formNumber) return '<span class="subtle">Uncatalogued form</span>';
     const resolved = (row.mappedPolicies || []).filter(n => policyExists(n));
     return `<b>Form ${esc(row.formNumber)}</b><div class="subtle">${resolved.length ? esc(resolved.join(', ')) : 'no live policy'}${(row.unresolvedPolicies || []).length ? ` · <span class="required">${esc(row.unresolvedPolicies.join(', '))} pending</span>` : ''}</div>`;
+  }
+  if (row.draft) {
+    const d = row.draft;
+    const sections = SECTIONS_SORTED();
+    if (!sections.includes(d.section)) sections.unshift(d.section);
+    const disabled = row.status === 'done' ? 'disabled' : '';
+    return `<div class="draftcell">
+<span class="status good" style="margin-bottom:4px;display:inline-block">New policy</span>
+<input class="rowselect" style="margin-bottom:3px" value="${esc(d.policy)}" placeholder="Number"
+       onchange="draftEdit(${row.id},'policy',this.value)" ${disabled}>
+<input class="rowselect" style="margin-bottom:3px" value="${esc(d.title)}" placeholder="Title"
+       onchange="draftEdit(${row.id},'title',this.value)" ${disabled}>
+<select class="rowselect" onchange="draftEdit(${row.id},'section',this.value)" ${disabled}>
+${sections.map(s => `<option value="${esc(s)}" ${s === d.section ? 'selected' : ''}>${esc(s)}</option>`).join('')}
+</select></div>`;
   }
   if (row.targetIdx === null || row.targetIdx === undefined) return '<span class="subtle">— unmatched —</span>';
   const p = POLICIES[row.targetIdx];
@@ -835,8 +1005,8 @@ function setKind(id, kind) {
   const r = QUEUE.find(x => x.id === id);
   if (!r) return;
   r.kind = kind;
-  if (kind === 'form') { r.targetIdx = null; if (r.status === 'needs_match') { r.status = 'ready'; r.note = ''; } }
-  else if (r.targetIdx === null) { const m = matchPolicy(r.name); r.targetIdx = m.idx; r.status = m.idx === null ? 'needs_match' : 'ready'; r.note = m.note; }
+  if (kind === 'form') { r.targetIdx = null; r.draft = null; if (r.status === 'needs_match') { r.status = 'ready'; r.note = ''; } }
+  else if (r.targetIdx === null && !r.draft) { const m = matchPolicy(r.name); r.targetIdx = m.idx; r.status = m.idx === null ? 'needs_match' : 'ready'; r.note = m.note; }
   renderQueue();
 }
 
@@ -845,12 +1015,14 @@ function changeTarget(id) {
   if (!r) return;
   const cell = byId(`qtarget-${id}`);
   const opts = POLICIES.map((p, i) => `<option value="${i}" ${i === r.targetIdx ? 'selected' : ''}>${esc(p.policy)} · ${esc(p.title)}</option>`).join('');
-  cell.innerHTML = `<select class="rowselect" onchange="setTarget(${id}, this.value)"><option value="">— unmatched —</option>${opts}</select>`;
+  cell.innerHTML = `<select class="rowselect" onchange="setTarget(${id}, this.value)"><option value="">— unmatched —</option><option value="__new__">+ Create as a new policy</option>${opts}</select>`;
   cell.querySelector('select').focus();
 }
 function setTarget(id, value) {
   const r = QUEUE.find(x => x.id === id);
   if (!r) return;
+  if (value === '__new__') { markAsNewPolicy(r); renderQueue(); return; }
+  r.draft = null;
   r.targetIdx = value === '' ? null : Number(value);
   if (r.targetIdx === null) { r.status = 'needs_match'; r.note = 'No policy match — choose one'; }
   else if (['needs_match','ready'].includes(r.status)) { r.status = 'ready'; r.note = 'Manually matched'; }
@@ -867,6 +1039,35 @@ const wait = ms => new Promise(res => setTimeout(res, ms));
 
 async function processRow(r) {
   r.status = 'uploading';
+
+  // A drafted policy has to exist before a version can hang off it, both in
+  // the library and in the database -- saveUpload refuses a policy it cannot
+  // find. Done first so a failure here stops the row instead of orphaning a
+  // file in Storage.
+  if (r.kind !== 'form' && r.draft) {
+    if (!r.draft.policy) {
+      r.status = 'needs_match';
+      r.note = 'Give the new policy a number before ingesting';
+      renderQueue();
+      return;
+    }
+    const known = POLICIES.length;
+    const idx = createPolicyFromDraft(r.draft);
+    const isNew = idx >= known;
+    const p = POLICIES[idx];
+    const saved = await persist(`${isNew ? 'New policy' : 'Policy'} ${p.policy}`, () => FPC.savePolicy(p));
+    if (dbReady && !saved) {
+      r.status = 'failed';
+      r.note = 'The new policy did not save — the file was not ingested';
+      renderQueue();
+      return;
+    }
+    r.targetIdx = idx;
+    if (isNew) r.createdPolicy = `${p.policy} · ${p.title}`;
+    else r.note = `Attached as a new version of ${p.policy} · ${p.title}`;
+    r.draft = null;
+  }
+
   for (let i = 0; i < PIPELINE_STAGES.length; i++) {
     r.stage = PIPELINE_STAGES[i];
     r.progress = Math.round((i + 1) / PIPELINE_STAGES.length * 100);
@@ -906,13 +1107,15 @@ async function startUpload() {
   uploading = false;
   const done = QUEUE.filter(r => r.status === 'done').length;
   const flagged = QUEUE.filter(r => ['rejected','duplicate','quarantine','needs_match','failed'].includes(r.status)).length;
-  byId('uploadStatus').textContent = `${done} ingested · ${flagged} still need attention`;
+  const created = QUEUE.filter(r => r.createdPolicy).length;
+  byId('uploadStatus').textContent =
+    `${done} ingested${created ? ` · ${created} new polic${created === 1 ? 'y' : 'ies'} created` : ''} · ${flagged} still need attention`;
   renderQueue();
   renderPolicyTable();
   renderTOC();
   renderForms();
   if (currentSection) renderTocPolicyList();
-  toast(`${done} document${done === 1 ? '' : 's'} ingested — pending review`);
+  toast(`${done} document${done === 1 ? '' : 's'} ingested${created ? `, ${created} new polic${created === 1 ? 'y' : 'ies'} added to the library` : ''} — pending review`);
 }
 
 /* drag and drop over the whole zone */

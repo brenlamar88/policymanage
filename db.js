@@ -274,6 +274,45 @@ FPC.deleteUser = async function (email) {
   return error ? {ok: false, reason: error.message} : {ok: true};
 };
 
+/* Creates a policy the library has not seen before. Bulk upload needs this:
+   saveUpload can only attach a version to a policy row that already exists,
+   so without it a new policy's file would upload and then fail to record.
+
+   Upserts on the table's own unique key, so re-running a batch is safe and
+   two files for the same new policy land on one policy row with two
+   versions rather than two half-populated policies. */
+FPC.savePolicy = async function (rec) {
+  if (!FPC.connected) return {ok: false, reason: 'offline'};
+  const c = FPC.client;
+
+  let sectionId = FPC.ids.sectionByName.get(rec.section);
+  if (!sectionId) {
+    // a number outside every known range: give it a home rather than drop it
+    const {data, error} = await c.from('toc_section')
+      .upsert({name: rec.section, sort_order: 900}, {onConflict: 'name'})
+      .select('id').single();
+    if (error) return {ok: false, reason: `section: ${error.message}`};
+    sectionId = data.id;
+    FPC.ids.sectionByName.set(rec.section, sectionId);
+  }
+
+  const {data, error} = await c.from('policy').upsert({
+    section_id: sectionId,
+    policy_number: rec.policy,
+    title: rec.title,
+    risk_level: rec.risk || 3,
+    risk_basis: rec.basis || null,
+    regulatory_driver: rec.regulatory || 'Corporate',
+    status: 'active'
+  }, {onConflict: 'section_id,policy_number,title'}).select('id').single();
+  if (error) return {ok: false, reason: error.message};
+
+  FPC.ids.policyByKey.set(policyKey(rec), data.id);
+  await FPC.audit('policy.created', 'policy', data.id,
+    {policy_number: rec.policy, title: rec.title, section: rec.section, via: 'bulk upload'});
+  return {ok: true, id: data.id};
+};
+
 /* An uploaded document: the bytes go to Storage, the record to the database. */
 FPC.saveUpload = async function (policyIdxKey, version, file) {
   if (!FPC.connected) return {ok: false, reason: 'offline'};

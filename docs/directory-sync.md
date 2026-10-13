@@ -5,6 +5,16 @@ you maintaining the user list twice. The sync runs *inside* Supabase on a
 nightly schedule — there is nothing to install or keep running on your own
 network.
 
+**RAP is the chosen source.** POP was evaluated and is kept documented below
+as the alternative, but nothing points at it. Microsoft Entra is deferred;
+the caveat under "Does RAP know about everybody?" is the reason that decision
+may want revisiting later, and the sync is built so changing source is a
+change to one view.
+
+Both halves have been exercised against real engines rather than reasoned
+about: the RAP side against MariaDB 10.11, the Policy Center side against
+PostgreSQL 16, with the MariaDB view's own output fed through the sync.
+
 ## Read this part first
 
 RAP is a live clinical system. The Policy Center, right now, is the opposite:
@@ -37,16 +47,16 @@ editing a RAP record. And no password ever crosses over — Entra proves
 identity, the directory only decides whose name is on the roster. The two meet
 on email address.
 
-## POP as the source instead
+## POP as the source instead — not in use
 
-POP (`zztbyviidzicarftmbdo`) is a Supabase/Postgres project, so it links by
-`postgres_fdw` rather than the MySQL wrapper. `db/pop-source.sql` has both
-halves: a view and a narrow role to run on POP, and a replacement for
-sections 1–2 of `db/directory-sync.sql` on this side. Sections 3 and 4 — the
-sync and the schedule — are unchanged either way.
+Kept for the record; RAP is what's wired. POP (`zztbyviidzicarftmbdo`) is a
+Supabase/Postgres project, so it links by `postgres_fdw` rather than the MySQL
+wrapper. `db/pop-source.sql` has both halves: an export view to run on POP,
+and a replacement for sections 1–2 of `db/directory-sync.sql` on this side.
+Sections 3 and 4 — the sync and the schedule — are unchanged either way.
 
-Pick one source, not both. Two writers racing on `app_user.email` would fight
-over the same rows every night.
+Whichever is used, use only one. Two writers racing on `app_user.email` would
+fight over the same rows every night.
 
 What POP gives you, measured against RAP:
 

@@ -87,7 +87,11 @@ create foreign table if not exists ext_directory.mysql_user (
   phone         text,
   facility_code text,
   hired_on      date,
-  is_active     boolean
+  -- smallint, not boolean. MySQL has no boolean type: the view's is_active
+  -- column comes back as int(1), confirmed against MariaDB 10.11. Declaring
+  -- it boolean here would rely on the wrapper coercing int to bool, which
+  -- is not worth depending on when an explicit comparison costs nothing.
+  is_active     smallint
 )
 server fpc_directory
 options (table 'fpc_user_roster');
@@ -96,7 +100,8 @@ create or replace view ext_directory.directory_user as
 select u.email, u.employee_no, u.first_name, u.last_name,
        u.phone, u.facility_code, u.hired_on
 from ext_directory.mysql_user u
-where coalesce(u.is_active, true);
+-- a null is_active means RAP had no opinion, so treat the person as current
+where coalesce(u.is_active, 1) = 1;
 
 -- The mirror is not part of the app's API surface. PostgREST only serves
 -- 'public', but revoke anyway: while access is open, anyone with the

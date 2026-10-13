@@ -81,10 +81,12 @@ credential is granted `SELECT` on a single seven-column view
 other table. That limit sits on the RAP server where nothing here can widen
 it.
 
-POP (`zztbyviidzicarftmbdo`) can be the source instead — it is a Supabase
-project, so it links by `postgres_fdw`. See `db/pop-source.sql` and the
-comparison in `docs/directory-sync.md`; POP has no employee number, phone or
-hire date, but it does know whether a login still works. Pick one, not both.
+RAP is the chosen source. POP was evaluated and `db/pop-source.sql` is kept as
+a documented alternative, but nothing points at it; Entra is deferred. The
+comparison is in `docs/directory-sync.md`.
+
+The RAP half is verified against MariaDB 10.11 and the Supabase half against
+PostgreSQL 16, with the MariaDB view's own output fed through the sync.
 
 RAP owns names, emails, employee numbers, facilities and hire dates.
 **Security roles stay in User Management** and sign-in stays with Microsoft

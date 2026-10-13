@@ -45,6 +45,11 @@ select
   u.phone                       as phone,
   u.facility                    as facility_code,
   u.hire_date                   as hired_on,
+  -- MySQL has no boolean type, so this arrives as int(1) and the Policy
+  -- Center declares the column smallint to match. EDIT this expression to
+  -- whatever RAP actually uses -- a status string, a disabled flag, a
+  -- termination date -- as long as it yields 1 for current staff and 0 for
+  -- everyone else.
   (u.active = 1)                as is_active
 from users u
 where u.email is not null
@@ -70,10 +75,31 @@ flush privileges;
 
 -- ------------------------------------------------------------------ step 4
 -- Prove the limit is real. The first should return rows; every other one
--- should be refused. If any of them succeeds, the grant is too wide -- stop
--- and fix it before pointing Supabase at this.
+-- should be refused. If any of the others succeeds, the grant is too wide --
+-- stop and fix it before pointing Supabase at this.
 --
 --   mysql -u fpc_readonly -p
---   select count(*) from fpc_user_roster;   -- expect: a number
---   select * from users limit 1;            -- expect: SELECT command denied
---   show tables;                            -- expect: only fpc_user_roster
+--   select count(*) from fpc_user_roster;      -- expect: a number
+--   select * from users limit 1;               -- expect: SELECT denied
+--   select * from <any clinical table> limit 1;-- expect: SELECT denied
+--   show tables;                               -- expect: only the view
+--
+-- The view reads with its definer's rights, which is what lets this account
+-- see the roster while holding no grant at all on the users table. That is
+-- also why the grant must stay on this one view: widen it and the limit goes.
+--
+-- Two results that look like failure but are not about the grant:
+--
+--   ERROR 1045 Access denied ... (using password: YES)
+--     Host matching, not privileges. An anonymous ''@'localhost' account --
+--     present on a default MySQL install -- shadows 'fpc_readonly'@'%' for
+--     connections from the server itself. Supabase connects remotely so it
+--     is unaffected, but a test run on the box will fail this way. Test from
+--     elsewhere, or check: select user, host from mysql.user where user = ''.
+--
+--   ERROR 1142 SELECT command denied ... for table `users`
+--     This is the grant working. Expected, and what you want to see.
+--
+-- Verified end to end against MariaDB 10.11: the account read the view,
+-- was refused on the users table and on a clinical table, and `show tables`
+-- listed nothing but the view.

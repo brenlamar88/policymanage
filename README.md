@@ -69,6 +69,16 @@ and names the fix for whichever step failed.
   to **Policy Administrator** in User Management if they should upload and publish for their
   own site.
 
+## Roster from your own database
+
+The user roster can come from a MySQL/MariaDB database you already own, synced
+nightly inside Supabase — see `docs/directory-sync.md` for what it needs and
+`db/directory-sync.sql` for the sync itself. The directory owns names, emails,
+employee numbers, facilities and hire dates; **security roles stay in User
+Management** and sign-in stays with Microsoft 365, so write access to that
+database never becomes admin access here. Departures are marked inactive, never
+deleted, so acknowledgement history survives.
+
 ## Backend plan
 
 The prototype is front-end only; the backing platform is planned in:

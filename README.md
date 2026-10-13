@@ -69,15 +69,22 @@ and names the fix for whichever step failed.
   to **Policy Administrator** in User Management if they should upload and publish for their
   own site.
 
-## Roster from your own database
+## Roster from RAP
 
-The user roster can come from a MySQL/MariaDB database you already own, synced
-nightly inside Supabase — see `docs/directory-sync.md` for what it needs and
-`db/directory-sync.sql` for the sync itself. The directory owns names, emails,
-employee numbers, facilities and hire dates; **security roles stay in User
-Management** and sign-in stays with Microsoft 365, so write access to that
-database never becomes admin access here. Departures are marked inactive, never
-deleted, so acknowledgement history survives.
+The user roster syncs nightly from RAP (`rap.freedomhc.com`) inside Supabase —
+see `docs/directory-sync.md`, with `db/rap-source.sql` run on RAP and
+`db/directory-sync.sql` on Supabase.
+
+RAP is a live clinical system and this app currently has open access, so the
+credential is granted `SELECT` on a single seven-column view
+(`fpc_user_roster`) and nothing else — no patient data, no password hashes, no
+other table. That limit sits on the RAP server where nothing here can widen
+it.
+
+RAP owns names, emails, employee numbers, facilities and hire dates.
+**Security roles stay in User Management** and sign-in stays with Microsoft
+365, so a RAP administrator cannot grant themselves admin here. Departures are
+marked inactive, never deleted, so acknowledgement history survives.
 
 ## Backend plan
 

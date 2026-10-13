@@ -1,33 +1,66 @@
-# Connecting users from your MySQL database
+# Connecting users from RAP
 
-The Policy Center can take its roster from a MySQL/MariaDB database you
-already own, instead of you maintaining the user list twice. The sync runs
-*inside* Supabase on a nightly schedule — there is nothing to install or keep
-running on your own network.
+The Policy Center takes its roster from RAP (`rap.freedomhc.com`), instead of
+you maintaining the user list twice. The sync runs *inside* Supabase on a
+nightly schedule — there is nothing to install or keep running on your own
+network.
+
+## Read this part first
+
+RAP is a live clinical system. The Policy Center, right now, is the opposite:
+RLS is off, the anonymous role can read and write every table, there is no
+sign-in, and the publishable key is committed in `config.js`. Connecting the
+two means a credential that reaches RAP exists in that environment.
+
+So the credential is not given a view of the RAP database. `db/rap-source.sql`
+creates a view in RAP called `fpc_user_roster` holding seven columns of staff
+contact detail, and grants the account `SELECT` on **that view only** — not on
+the `users` table, not on the schema. Nothing clinical, no patient data and no
+password hash is reachable through it, whatever happens on the Supabase side
+and whoever ends up with the key.
+
+That limit lives on the RAP server, where nothing in the Policy Center can
+widen it. Step 4 of `db/rap-source.sql` is a short test that proves it: log in
+as the account and confirm that `select * from users` is refused.
 
 ## What the directory controls, and what it does not
 
 | | Source of truth |
 |---|---|
-| Name, email, employee number, phone, home facility, hire date | **Your MySQL database** |
+| Name, email, employee number, phone, home facility, hire date | **RAP** |
 | Security role (System Administrator, Manager, …) | **User Management**, by hand |
 | Who can actually sign in | **Microsoft 365** |
 
 The split is deliberate. The upsert has no `security_role` clause at all, so
-whoever can write to the MySQL database still cannot grant themselves admin
-in the Policy Center. And no password ever crosses over — Entra proves
+a RAP administrator cannot grant themselves admin in the Policy Center by
+editing a RAP record. And no password ever crosses over — Entra proves
 identity, the directory only decides whose name is on the roster. The two meet
 on email address.
 
+## Does RAP know about everybody?
+
+Worth settling before this goes in. RAP's user table is everyone who uses
+*RAP*, which may be narrower than everyone who has to acknowledge a policy. If
+there are staff with no RAP login, they will not appear on the policy roster,
+and the gap will be silent — nothing errors, they simply are not there.
+
+Two ways to check: compare `select count(*) from fpc_user_roster` against your
+headcount, and after the first sync look at how many `app_user` rows are still
+`directory_source = 'entra'` or `'manual'`.
+
+If RAP turns out to cover only part of the organisation, Microsoft 365 is the
+better roster source — every employee has a mailbox — and RAP is better used
+for the details Entra does not hold, like employee number and hire date. The
+sync is built so that swap is a change to one view.
+
 ## What I need from you
 
-Four facts, and **not the password** — see below:
+Three facts, and **not the password** — see below:
 
-1. Host and port of the MySQL server.
-2. Database (schema) name.
-3. The table holding the users.
-4. The column names for: email, first name, last name, employee number,
-   phone, facility, hire date, and whatever marks a leaver.
+1. Host and port of the RAP MySQL server, and the database name.
+2. The output of `show columns from users;` on RAP (step 1 of
+   `db/rap-source.sql`), so the view maps the right columns.
+3. How RAP marks a disabled account — a flag, a status column, a date.
 
 For facility, the sync joins on `facility.code`, which is a six-letter code:
 `MONROE`, `LAKECH`, `LEESVI`, `PLAINV`, `VILLEP`, `DEQUIN`, `MINDEN`,
@@ -45,17 +78,14 @@ Supabase's Vault yourself, in the SQL editor:
 
 ```sql
 select vault.create_secret(
-  'mysql://fpc_readonly:THE-PASSWORD@your-host:3306/your_schema?require_ssl=true',
+  'mysql://fpc_readonly:THE-PASSWORD@rap-host:3306/rap_schema?require_ssl=true',
   'fpc_directory_mysql');
 ```
 
 `db/directory-sync.sql` reads it back by that name and never stores the string
-itself. Two things worth doing while you are there:
-
-- Create a **read-only** MySQL account for this. The Policy Center never
-  writes to your database, so read-only costs you nothing and means a mistake
-  on this side cannot damage the source system.
-- Keep `require_ssl=true`. The connection crosses the public internet.
+itself. Use the same password you set in step 3 of `db/rap-source.sql`, and
+keep `require_ssl=true` — the connection crosses the public internet to reach
+a clinical system.
 
 ## Running it
 
@@ -116,9 +146,11 @@ never switched off by the directory.
 - **The functions are not callable from the browser.** Both are
   `security definer`, and both have `EXECUTE` revoked from `anon` and
   `authenticated`, so the publishable key in `config.js` cannot trigger a sync.
-- **The MySQL mirror is not exposed through the API.** It lives in the
+- **The RAP mirror is not exposed through the API.** It lives in the
   `ext_directory` schema, which PostgREST does not serve, with privileges
   revoked from `anon` as well.
+- **The connection is read-only at the RAP end.** `SELECT` on one view is the
+  only privilege granted, so nothing here can modify RAP even by accident.
 
 ## Known rough edge, unrelated to the sync
 

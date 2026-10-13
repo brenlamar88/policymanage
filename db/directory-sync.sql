@@ -70,44 +70,38 @@ end $$;
 
 
 -- ===================================================================== 2/4
--- The seam. This is the ONLY part that depends on how your MySQL database
--- is laid out; everything after it is generic.
+-- The seam. This is the ONLY part that depends on the source layout;
+-- everything after it is generic.
 --
--- Point the foreign table at the real table and columns, then let the view
--- rename them to what the sync expects. Keeping the rename in a view means a
--- column added or renamed upstream is a one-line change here, not a rewrite.
+-- The source is the view fpc_user_roster, created on the RAP server by
+-- db/rap-source.sql -- not a RAP table. RAP is a live clinical-adjacent
+-- system and the Policy Center's own access is currently wide open, so the
+-- credential used here is granted SELECT on that view and nothing else. The
+-- seven columns below are the whole of what crosses over.
 
 create foreign table if not exists ext_directory.mysql_user (
-  -- EDIT: left-hand names must match your MySQL columns exactly.
-  id            bigint,
-  employee_id   text,
+  email         text,
+  employee_no   text,
   first_name    text,
   last_name     text,
-  email         text,
   phone         text,
-  facility      text,
-  hire_date     date,
-  active        boolean
+  facility_code text,
+  hired_on      date,
+  is_active     boolean
 )
 server fpc_directory
-options (table 'users');          -- EDIT: your table name
+options (table 'fpc_user_roster');
 
 create or replace view ext_directory.directory_user as
-select
-  u.email,
-  u.employee_id  as employee_no,
-  u.first_name,
-  u.last_name,
-  u.phone,
-  u.facility     as facility_code,
-  u.hire_date    as hired_on
+select u.email, u.employee_no, u.first_name, u.last_name,
+       u.phone, u.facility_code, u.hired_on
 from ext_directory.mysql_user u
-where coalesce(u.active, true);   -- EDIT: however your source marks leavers
+where coalesce(u.is_active, true);
 
--- The mirror is not part of the app's API surface. PostgREST only exposes
+-- The mirror is not part of the app's API surface. PostgREST only serves
 -- 'public', but revoke anyway: while access is open, anyone with the
--- publishable key would otherwise be one config change from reading your
--- other system's user table.
+-- publishable key would otherwise be one config change from reading staff
+-- contact details out of RAP.
 revoke all on schema ext_directory from anon, authenticated;
 revoke all on all tables in schema ext_directory from anon, authenticated;
 

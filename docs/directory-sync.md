@@ -37,6 +37,63 @@ editing a RAP record. And no password ever crosses over — Entra proves
 identity, the directory only decides whose name is on the roster. The two meet
 on email address.
 
+## POP as the source instead
+
+POP (`zztbyviidzicarftmbdo`) is a Supabase/Postgres project, so it links by
+`postgres_fdw` rather than the MySQL wrapper. `db/pop-source.sql` has both
+halves: a view and a narrow role to run on POP, and a replacement for
+sections 1–2 of `db/directory-sync.sql` on this side. Sections 3 and 4 — the
+sync and the schedule — are unchanged either way.
+
+Pick one source, not both. Two writers racing on `app_user.email` would fight
+over the same rows every night.
+
+What POP gives you, measured against RAP:
+
+| | RAP | POP |
+|---|---|---|
+| Email | yes | yes |
+| First / last name | separate columns | one `full_name`, must be split |
+| Employee number | likely | **none** |
+| Phone | likely | **none** |
+| Hire date | likely | **none** |
+| Facility | one per person | many-to-many, needs a rule |
+| Reliable active/inactive | unclear | **yes** — reads `auth.users` |
+
+Two judgement calls are baked into `db/pop-source.sql`, both deliberately
+visible rather than clever:
+
+- **The name split.** First token is the forename, everything after it the
+  surname. That is right for a plain two-word name and for a multi-word
+  surname, and wrong for anyone recorded surname-first. A single-word
+  `full_name` yields no surname at all and arrives as `—`, because
+  `app_user.last_name` is `NOT NULL`. The Policy Center displays both parts,
+  so a mistake here is visible and correctable, not silent.
+- **The facility.** Claimed only when a person has exactly one active
+  facility assignment. Two or none means no facility, and
+  `preview_directory_users()` lists them so they can be set by hand instead
+  of guessed at here.
+
+POP's advantage is the active flag: the view runs inside POP, so it can read
+`auth.users` and tell whether the login still works (`deleted_at is null`,
+and `banned_until` either unset or in the past). RAP has no equivalent unless
+its users table carries one.
+
+## Why the publishable key is not enough
+
+POP's `profiles` table has RLS on, with `FOR SELECT TO authenticated` and no
+`anon` policy. POP's publishable key therefore returns **zero rows** — it is
+not a way in, and neither is the Policy Center's own key.
+
+A roster sync needs one of two things, and only one of them is safe:
+
+- **A dedicated Postgres role** scoped to the export view, as in
+  `db/pop-source.sql`. This is the right answer.
+- **POP's `service_role` key**, which bypasses RLS entirely. Don't use it,
+  don't paste it into a chat, and don't put it in this repo. It is a master
+  key to all of POP, `iop_patients` and `iop_attendance` included, and the
+  Policy Center is currently an open database — the two must not meet.
+
 ## Does RAP know about everybody?
 
 Worth settling before this goes in. RAP's user table is everyone who uses

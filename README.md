@@ -81,6 +81,11 @@ credential is granted `SELECT` on a single seven-column view
 other table. That limit sits on the RAP server where nothing here can widen
 it.
 
+POP (`zztbyviidzicarftmbdo`) can be the source instead — it is a Supabase
+project, so it links by `postgres_fdw`. See `db/pop-source.sql` and the
+comparison in `docs/directory-sync.md`; POP has no employee number, phone or
+hire date, but it does know whether a login still works. Pick one, not both.
+
 RAP owns names, emails, employee numbers, facilities and hire dates.
 **Security roles stay in User Management** and sign-in stays with Microsoft
 365, so a RAP administrator cannot grant themselves admin here. Departures are

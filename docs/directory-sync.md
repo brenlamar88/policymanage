@@ -5,6 +5,14 @@ you maintaining the user list twice. The sync runs *inside* Supabase on a
 nightly schedule — there is nothing to install or keep running on your own
 network.
 
+> **Superseded in part.** The source turned out to be a Lovable Cloud
+> *PostgreSQL* app reached over its web API, not MySQL — the MySQL assumption
+> came from a multiple-choice question answered here, not from the system. The
+> MySQL half of this document and `db/rap-source.sql` do not apply. What the
+> source needs to provide is in `docs/roster-source-contract.md`; the sync
+> itself (sections 3 and 4 of `db/directory-sync.sql`) is unaffected, which
+> was the point of putting the source behind a view.
+
 **RAP is the chosen source.** POP was evaluated and is kept documented below
 as the alternative, but nothing points at it. Microsoft Entra is deferred;
 the caveat under "Does RAP know about everybody?" is the reason that decision

@@ -16,6 +16,8 @@
 .iconbtn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:9px 11px;cursor:pointer;margin-left:8px}
 .user{display:flex;gap:9px;align-items:center;margin-left:14px}
 .avatar{width:36px;height:36px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:700}
+.accesslevel{font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--muted);text-transform:uppercase;
+             border:1px solid var(--line);border-radius:20px;padding:6px 12px;white-space:nowrap}
 .content{padding:24px 26px 42px;max-width:1600px;margin:auto}
 .hero{background:linear-gradient(115deg,#0d2542,#175c92 68%,#4b9a48);color:#fff;border-radius:15px;padding:22px 26px;display:flex;justify-content:space-between;gap:20px;box-shadow:var(--shadow)}
 .hero h3{font-size:25px;margin:0 0 8px}.hero p{margin:0;opacity:.85;max-width:760px}
@@ -229,7 +231,7 @@ body[data-access="staff"] .admin-only{display:none !important}
 <div class="navlabel">Quick TOC — <span id="quickTocCount">0</span> Sections</div><div id="quickToc" class="quicktoc"></div>
 </aside>
 <main class="main">
-<header class="topbar"><div><div class="subtle">Freedom Behavioral · Policy Governance</div><h2 id="pageTitle">Enterprise Policy Dashboard</h2></div><div class="spacer"></div><button class="iconbtn" onclick="focusSearch()" title="Search the policy library">⌕</button><div class="user"><div class="avatar" id="meInitials">--</div><span><b id="meName">—</b><div class="subtle" id="meRole"></div></span></div>
+<header class="topbar"><div><div class="subtle">Freedom Behavioral · Policy Governance</div><h2 id="pageTitle">Enterprise Policy Dashboard</h2></div><div class="spacer"></div><button class="iconbtn" onclick="focusSearch()" title="Search the policy library">⌕</button><div class="user"><span class="accesslevel" id="meRole" title="Your access level in this system"></span></div>
 <div id="dbStatus" class="dbstatus" style="display:none" title="Database connection"></div></header>
 <div class="content">
 

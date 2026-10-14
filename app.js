@@ -2161,12 +2161,16 @@ const signInChip = e => inTenant(e.email)
 const securityRoleOf = e => e.securityRole || 'Employee';
 let editingUserId = null;
 
+/* The top bar shows an access level, not a person. Nobody signs in yet, so
+   naming a user there would be asserting an identity the system has not
+   established -- and in a system whose whole job is recording who
+   acknowledged what, a made-up "signed in as" is worse than none. The role
+   still comes from the account that grants access, until Microsoft sign-in
+   replaces it with a real one (docs/sign-in-setup.md). */
 function renderSignedInUser() {
   const me = currentUser();
-  if (!me) return;
-  byId('meInitials').textContent = (me.first[0] || '') + (me.last[0] || '');
-  byId('meName').textContent = `${me.first} ${me.last}`;
-  byId('meRole').textContent = securityRoleOf(me);
+  const el = byId('meRole');
+  if (el) el.textContent = me ? securityRoleOf(me) : 'Not signed in';
 }
 
 function renderSecurityRoles() {

@@ -230,36 +230,19 @@ let currentSection = '';
    content — forms, assignment rules, the directory, uploads, approvals —
    is administrator-only. */
 const STAFF_VIEWS = ['dashboard', 'library', 'toc'];
-let previewRole = null;
 
-const effectiveRole = () => previewRole || (currentUser() ? securityRoleOf(currentUser()) : 'Employee');
+/* A person's role is their own. There was once a "Preview as" selector in
+   the top bar for trying the portal as another role; it is gone, because it
+   let anyone put themselves in System Administrator and unlock every
+   administrator view. With the gate enforced in the browser, that was not a
+   demonstration feature so much as an unlocked door. To check what staff
+   see, sign in as one of them. */
+const effectiveRole = () => (currentUser() ? securityRoleOf(currentUser()) : 'Employee');
 const isAdmin = () => isAdminRole(effectiveRole());
 const canSee = view => isAdmin() || STAFF_VIEWS.includes(view);
 
-function setPreviewRole(role) {
-  previewRole = role === '__self__' ? null : role;
-  applyAccess();
-  const active = document.querySelector('.view.active');
-  if (active && !canSee(active.id)) showView('dashboard', 'Enterprise Policy Dashboard');
-  else refreshAccessDependentViews();
-  toast(`Previewing the portal as ${effectiveRole()}`);
-}
-
 function applyAccess() {
   document.body.dataset.access = isAdmin() ? 'admin' : 'staff';
-  const note = byId('accessNote');
-  if (note) {
-    const previewing = previewRole && previewRole !== securityRoleOf(currentUser());
-    note.style.display = previewing ? '' : 'none';
-    note.innerHTML = previewing
-      ? `Previewing as <b>${esc(effectiveRole())}</b> — ${isAdmin() ? 'administrator tools are visible.' : 'only Dashboard, Policy &amp; Form Library, and Table of Contents are available.'} <button class="btn outline" style="padding:4px 9px;font-size:11px;margin-left:6px" onclick="byId('previewRole').value='__self__';setPreviewRole('__self__')">Back to my role</button>`
-      : '';
-  }
-}
-
-function refreshAccessDependentViews() {
-  renderPolicyTable();
-  if (currentSection) renderTocPolicyList();
 }
 
 function showView(id, label) {
@@ -643,8 +626,6 @@ async function init() {
   renderUsers();
   renderUserPreview();
   renderSignedInUser();
-  byId('previewRole').innerHTML = `<option value="__self__">My role — ${esc(securityRoleOf(currentUser()))}</option>` +
-    SECURITY_ROLES.map(r => `<option value="${esc(r.name)}">${esc(r.name)}</option>`).join('');
   applyAccess();
 }
 document.addEventListener('DOMContentLoaded', init);

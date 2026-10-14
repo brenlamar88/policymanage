@@ -181,13 +181,9 @@
 .rolecard p{margin:4px 0 0;font-size:11px;color:var(--muted)}
 .rolecard .lvl{float:right}
 body[data-access="staff"] .admin-only{display:none !important}
-.viewas{display:flex;align-items:center;gap:6px;margin-left:14px;padding-left:14px;border-left:1px solid var(--line)}
-.viewas label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:800}
-.viewas select{border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:#fff;font-size:12px}
 .dbstatus{margin-left:12px;font-size:11px;font-weight:700;padding:6px 9px;border-radius:8px;border:1px solid var(--line);background:#f8fafc;color:var(--muted);white-space:nowrap}
 .dbstatus.live{background:#eaf6e8;color:#357a2f;border-color:#c6e6c0}
 .dbstatus.off{background:#fff7dd;color:#8a6500;border-color:#f3d38a;cursor:help}
-.accessnote{background:#f1f5f9;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:12px;color:var(--muted);margin-bottom:14px}
 .adminbadge{background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;font-size:10px;font-weight:800;padding:3px 6px;border-radius:6px}
 @media(max-width:1100px){.rolegrid{grid-template-columns:1fr}}
 .versionrow:last-child{border-bottom:0}
@@ -234,10 +230,8 @@ body[data-access="staff"] .admin-only{display:none !important}
 </aside>
 <main class="main">
 <header class="topbar"><div><div class="subtle">Freedom Behavioral · Policy Governance</div><h2 id="pageTitle">Enterprise Policy Dashboard</h2></div><div class="spacer"></div><button class="iconbtn" onclick="focusSearch()" title="Search the policy library">⌕</button><div class="user"><div class="avatar" id="meInitials">--</div><span><b id="meName">—</b><div class="subtle" id="meRole"></div></span></div>
-<div id="dbStatus" class="dbstatus" style="display:none" title="Database connection"></div>
-<div class="viewas"><label for="previewRole">Preview as</label><select id="previewRole" onchange="setPreviewRole(this.value)"></select></div></header>
+<div id="dbStatus" class="dbstatus" style="display:none" title="Database connection"></div></header>
 <div class="content">
-<div id="accessNote" class="accessnote" style="display:none"></div>
 
 <section id="dashboard" class="view active">
 <div class="hero"><div><h3>Freedom Policy Governance Command Center</h3><p>Controlled enterprise policies, associated forms, risk classification, and the digital table of contents — organized around the Freedom operating model.</p></div><div class="hero-actions"><button class="btn white touchbtn" onclick="showView('library','Policy &amp; Form Library')">Open Policy Library</button><button class="btn primary touchbtn" onclick="showView('toc','Enterprise Table of Contents')">Table of Contents</button></div></div>
